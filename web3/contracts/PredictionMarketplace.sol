@@ -96,7 +96,7 @@ contract PredictionMarket is Ownable, Pausable, ReentrancyGuard {
         marketCreationFee = newFee;
     }
     
-    /**
+    /** 
      * @notice Pause trading
      */
     function pause() external onlyOwner {
