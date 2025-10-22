@@ -1,0 +1,6 @@
+1. Task submitted
+2. VerificationManager selects validators (random selection, randao + reputation score)
+3. Validators vote (approve/reject + confidence score)
+4. Consensus score calculated (majority approval, confidence score)
+5. If consensus score >= threshold, task marked as verified (not yet finalized)
+6. if oracle data then finalized 
