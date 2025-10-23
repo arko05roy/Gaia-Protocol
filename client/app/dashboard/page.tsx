@@ -8,6 +8,7 @@ import FeatureCards from "@/components/dashboard/feature-cards"
 import MyAssets from "@/components/dashboard/my-assets"
 import CreateTaskModal from "@/components/dashboard/create-task-modal"
 import { Button } from "@/components/ui/button"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 export default function Dashboard() {
   const [showCreateTask, setShowCreateTask] = useState(false)

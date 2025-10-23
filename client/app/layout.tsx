@@ -4,6 +4,12 @@ import { Poppins, Roboto } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import FloatingChat from "@/components/floating-chat"
+import { headers } from "next/headers";
+import { cookieToInitialState } from "wagmi";
+import { getConfig } from "./config";
+import { Providers } from "./providers";
+
+
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -23,17 +29,24 @@ export const metadata: Metadata = {
   generator: "v0.app",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
-}>) {
+}>)
+{
+  const initialState = cookieToInitialState(
+    getConfig(),
+    (await headers()).get("cookie")
+  );
   return (
     <html lang="en">
       <body className={`${poppins.variable} ${roboto.variable} font-sans antialiased`}>
-        {children}
+        <Providers initialState={initialState}>
+          {children}
         <FloatingChat />
         <Analytics />
+        </Providers>
       </body>
     </html>
   )
