@@ -198,7 +198,7 @@ contract DataRegistry is Ownable, Pausable, ReentrancyGuard {
             string memory location,
             ,
             ,
-            string memory ipfsHash,
+            ,
             ,
             ,
             address operator,
