@@ -1,40 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Download, CheckCircle2, XCircle, MapPin, Camera } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle2, XCircle, MapPin, Camera, Loader, AlertCircle } from "lucide-react"
+import { useGetTotalTasks, useGetTasks, useSubmitValidatorVote, useGetTaskValidators, TaskStatus } from "@/hooks"
+import { useAccount } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { formatUnits } from "viem"
 
 interface VerificationTask {
-  id: string
-  title: string
+  id: bigint
   description: string
-  status: "pending" | "approved" | "rejected"
-  requirements: string[]
-  ipfsBundle: string
-  photos: string[]
+  location: string
+  status: TaskStatus
+  proofRequirements: string
+  ipfsHash: string
 }
 
-const mockTasks: VerificationTask[] = [
-  {
-    id: "1",
-    title: "Task #1 – Plant 10,000 Mangroves (Pichavaram Region)",
-    description: "Verification of mangrove planting initiative in Pichavaram coastal region",
-    status: "pending",
-    requirements: [
-      "GPS coordinates verified",
-      "Drone footage captured",
-      "Photo documentation complete",
-      "Soil quality assessment",
-      "Biodiversity baseline established",
-    ],
-    ipfsBundle: "QmXxxx...",
-    photos: ["/mangrove-planting-1.jpg", "/mangrove-planting-2.jpg", "/mangrove-planting-3.jpg"],
-  },
-]
+// Mock tasks - in production these would come from useGetTasks
+const mockTasks: VerificationTask[] = []
 
 export default function ValidatorDashboard() {
+  const { address } = useAccount()
+  const { totalTasks } = useGetTotalTasks()
+  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
+  const { submitValidatorVote, isPending: isSubmitting, isSuccess: voteSuccess } = useSubmitValidatorVote()
+  
   const [selectedTask, setSelectedTask] = useState<VerificationTask | null>(null)
   const [verificationData, setVerificationData] = useState({
     checklist: {
@@ -48,14 +41,51 @@ export default function ValidatorDashboard() {
     justification: "",
   })
   const [showSuccess, setShowSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleApprove = () => {
-    setShowSuccess(true)
-    setTimeout(() => {
-      setShowSuccess(false)
-      setSelectedTask(null)
-    }, 3000)
+  // Filter tasks that need verification (not verified or rejected)
+  const pendingTasks = (tasks || []).filter((t) => t.status !== TaskStatus.Verified && t.status !== TaskStatus.Rejected)
+
+  const handleApprove = async () => {
+    if (!selectedTask || !address) {
+      setError("Wallet not connected")
+      return
+    }
+
+    try {
+      setError(null)
+      const approved = true // User approved the task
+      submitValidatorVote(selectedTask.id, approved, verificationData.justification, BigInt(verificationData.confidence))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit vote")
+    }
   }
+
+  const handleReject = async () => {
+    if (!selectedTask || !address) {
+      setError("Wallet not connected")
+      return
+    }
+
+    try {
+      setError(null)
+      const approved = false // User rejected the task
+      submitValidatorVote(selectedTask.id, approved, verificationData.justification, BigInt(verificationData.confidence))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit vote")
+    }
+  }
+
+  // Auto-close modal on success
+  React.useEffect(() => {
+    if (voteSuccess) {
+      setShowSuccess(true)
+      setTimeout(() => {
+        setShowSuccess(false)
+        setSelectedTask(null)
+      }, 3000)
+    }
+  }, [voteSuccess])
 
   if (showSuccess) {
     return (
@@ -85,27 +115,24 @@ export default function ValidatorDashboard() {
           </button>
 
           <Card className="p-6 sm:p-8">
-            <h1 className="text-3xl font-bold mb-2">{selectedTask.title}</h1>
+            <h1 className="text-3xl font-bold mb-2">Task #{Number(selectedTask.id)}</h1>
             <p className="text-foreground/70 mb-8">{selectedTask.description}</p>
+            <div className="flex items-center gap-2 text-foreground/60 mb-8">
+              <MapPin className="h-4 w-4" />
+              <span>{selectedTask.location}</span>
+            </div>
 
-            {/* Task Requirements */}
+            {/* Proof Requirements */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4">Task Requirements</h2>
-              <ul className="space-y-2">
-                {selectedTask.requirements.map((req, idx) => (
-                  <li key={idx} className="flex items-center gap-2 text-foreground/80">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                    {req}
-                  </li>
-                ))}
-              </ul>
+              <h2 className="text-xl font-semibold mb-4">Proof Requirements</h2>
+              <p className="text-foreground/80">{selectedTask.proofRequirements}</p>
             </div>
 
             {/* IPFS Bundle Download */}
             <div className="mb-8 p-4 bg-secondary/50 rounded-lg flex items-center justify-between">
               <div>
-                <p className="font-semibold">IPFS Bundle</p>
-                <p className="text-sm text-foreground/70">{selectedTask.ipfsBundle}</p>
+                <p className="font-semibold">IPFS Hash</p>
+                <p className="text-sm text-foreground/70">{selectedTask.ipfsHash}</p>
               </div>
               <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                 <Download className="h-4 w-4" />
@@ -120,14 +147,9 @@ export default function ValidatorDashboard() {
                 Photo Documentation
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {selectedTask.photos.map((photo, idx) => (
-                  <img
-                    key={idx}
-                    src={photo || "/placeholder.svg"}
-                    alt={`Documentation ${idx + 1}`}
-                    className="w-full h-48 object-cover rounded-lg border border-border"
-                  />
-                ))}
+                <div className="w-full h-48 bg-secondary/30 rounded-lg border border-border flex items-center justify-center">
+                  <p className="text-foreground/60">Photos from IPFS</p>
+                </div>
               </div>
             </div>
 
@@ -186,18 +208,50 @@ export default function ValidatorDashboard() {
               />
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-4">
               <Button
                 onClick={handleApprove}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                disabled={isSubmitting}
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Approve
+                {isSubmitting ? (
+                  <>
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Approve
+                  </>
+                )}
               </Button>
-              <Button variant="outline" className="flex-1 font-semibold bg-transparent">
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject
+              <Button
+                onClick={handleReject}
+                variant="outline"
+                className="flex-1 font-semibold bg-transparent"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject
+                  </>
+                )}
               </Button>
             </div>
           </Card>
@@ -220,28 +274,41 @@ export default function ValidatorDashboard() {
         {/* Pending Reviews Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-6">Pending Reviews</h2>
-          <div className="grid gap-4">
-            {mockTasks.map((task) => (
-              <Card key={task.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold mb-2">{task.title}</h3>
-                    <p className="text-foreground/70 mb-4">{task.description}</p>
-                    <div className="flex items-center gap-2 text-sm text-foreground/60">
-                      <MapPin className="h-4 w-4" />
-                      <span>Pichavaram Region</span>
+          {tasksLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-foreground/60">Loading tasks for verification...</p>
+              </div>
+            </div>
+          ) : pendingTasks.length === 0 ? (
+            <Card className="p-8 text-center">
+              <p className="text-foreground/60">No tasks pending verification at this time</p>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {pendingTasks.map((task) => (
+                <Card key={Number(task.id)} className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold mb-2">Task #{Number(task.id)}</h3>
+                      <p className="text-foreground/70 mb-4 line-clamp-2">{task.description}</p>
+                      <div className="flex items-center gap-2 text-sm text-foreground/60">
+                        <MapPin className="h-4 w-4" />
+                        <span>{task.location}</span>
+                      </div>
                     </div>
+                    <Button
+                      onClick={() => setSelectedTask(task as VerificationTask)}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                    >
+                      Open Verification Interface
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => setSelectedTask(task)}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                  >
-                    Open Verification Interface
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

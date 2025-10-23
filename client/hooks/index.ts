@@ -186,3 +186,18 @@ export {
   type TaskPredictions,
   type ConsensusPrediction,
 } from './useModelRegistry';
+
+// ERC20 Approval Hooks
+export {
+  useGetAllowance,
+  useApproveToken,
+  useCUSDTokenAddress,
+  useGetCUSDBalance,
+} from './useERC20Approval';
+
+// ERC1155 Approval Hooks
+export {
+  useIsApprovedForAll,
+  useSetApprovalForAll,
+  useCarbonCreditMinterAddress,
+} from './useERC1155Approval';

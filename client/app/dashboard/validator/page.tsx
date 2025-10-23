@@ -1,17 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Download, CheckCircle2, XCircle, ChevronDown, ChevronUp, ImageIcon, FileText } from "lucide-react"
+import { Download, CheckCircle2, XCircle, ChevronDown, ChevronUp, ImageIcon, FileText, Loader, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useGetTotalTasks, useGetTasks, useSubmitValidatorVote, TaskStatus } from "@/hooks"
+import { useAccount } from "wagmi"
 
 interface VerificationTask {
-  id: string
-  title: string
+  id: bigint
   description: string
   location: string
-  targetTrees: number
-  status: "pending" | "approved" | "rejected"
+  status: TaskStatus
+  proofRequirements: string
+  ipfsHash: string
 }
 
 interface VerificationStep {
@@ -19,25 +21,6 @@ interface VerificationStep {
   label: string
   completed: boolean
 }
-
-const mockTasks: VerificationTask[] = [
-  {
-    id: "task-1",
-    title: "Plant 10,000 Mangroves",
-    description: "Mangrove restoration project in Pichavaram Region",
-    location: "Pichavaram Region, Tamil Nadu, India",
-    targetTrees: 10000,
-    status: "pending",
-  },
-  {
-    id: "task-2",
-    title: "Restore 5,000 Native Trees",
-    description: "Native forest restoration in Western Ghats",
-    location: "Western Ghats, Karnataka, India",
-    targetTrees: 5000,
-    status: "pending",
-  },
-]
 
 const mockVerificationSteps: VerificationStep[] = [
   { id: "step-1", label: "GPS coordinates verified", completed: false },
@@ -54,43 +37,74 @@ const mockPhotos = [
 ]
 
 export default function ValidatorPage() {
+  const { address } = useAccount()
+  const { totalTasks } = useGetTotalTasks()
+  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
+  const { submitValidatorVote, isPending: isSubmitting, isSuccess: voteSuccess } = useSubmitValidatorVote()
+
   const [selectedTask, setSelectedTask] = useState<VerificationTask | null>(null)
-  const [expandedTask, setExpandedTask] = useState<string | null>(null)
+  const [expandedTask, setExpandedTask] = useState<bigint | null>(null)
   const [verificationSteps, setVerificationSteps] = useState(mockVerificationSteps)
   const [confidence, setConfidence] = useState(50)
   const [justification, setJustification] = useState("")
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  // Filter tasks that need verification (not verified or rejected)
+  const pendingTasks = (tasks || []).filter((t) => t.status !== TaskStatus.Verified && t.status !== TaskStatus.Rejected)
 
   const handleStepToggle = (stepId: string) => {
     setVerificationSteps(
-      verificationSteps.map((step) => (step.id === stepId ? { ...step, completed: !step.completed } : step)),
+      verificationSteps.map((step: VerificationStep) => (step.id === stepId ? { ...step, completed: !step.completed } : step)),
     )
   }
 
-  const handleApprove = () => {
-    setSuccessMessage("Verification submitted successfully. Task approved on-chain.")
-    setShowSuccessModal(true)
-    setTimeout(() => {
-      setShowSuccessModal(false)
-      setSelectedTask(null)
-      setVerificationSteps(mockVerificationSteps)
-      setConfidence(50)
-      setJustification("")
-    }, 3000)
+  const handleApprove = async () => {
+    if (!selectedTask || !address) {
+      setError("Wallet not connected")
+      return
+    }
+
+    try {
+      setError(null)
+      const approved = true
+      submitValidatorVote(selectedTask.id, approved, justification, BigInt(confidence))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit vote")
+    }
   }
 
-  const handleReject = () => {
-    setSuccessMessage("Verification rejected. Task returned for revision.")
-    setShowSuccessModal(true)
-    setTimeout(() => {
-      setShowSuccessModal(false)
-      setSelectedTask(null)
-      setVerificationSteps(mockVerificationSteps)
-      setConfidence(50)
-      setJustification("")
-    }, 3000)
+  const handleReject = async () => {
+    if (!selectedTask || !address) {
+      setError("Wallet not connected")
+      return
+    }
+
+    try {
+      setError(null)
+      const approved = false
+      submitValidatorVote(selectedTask.id, approved, justification, BigInt(confidence))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit vote")
+    }
   }
+
+  // Auto-close modal on success
+  React.useEffect(() => {
+    if (voteSuccess) {
+      setSuccessMessage("Verification submitted successfully. Task approved on-chain.")
+      setShowSuccessModal(true)
+      setTimeout(() => {
+        setShowSuccessModal(false)
+        setSelectedTask(null)
+        setVerificationSteps(mockVerificationSteps)
+        setConfidence(50)
+        setJustification("")
+      }, 3000)
+    }
+  }, [voteSuccess])
 
   return (
     <div className="flex-1 overflow-auto">
@@ -105,64 +119,77 @@ export default function ValidatorPage() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground">Pending Reviews</h2>
 
-          <div className="space-y-3">
-            {mockTasks.map((task) => (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="border border-border rounded-lg bg-card hover:bg-card/80 transition-colors"
-              >
-                <button
-                  onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
-                  className="w-full p-4 flex items-center justify-between"
+          {tasksLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-foreground/60">Loading tasks for verification...</p>
+              </div>
+            </div>
+          ) : pendingTasks.length === 0 ? (
+            <div className="p-8 text-center border border-border rounded-lg bg-card">
+              <p className="text-foreground/60">No tasks pending verification at this time</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingTasks.map((task) => (
+                <motion.div
+                  key={Number(task.id)}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="border border-border rounded-lg bg-card hover:bg-card/80 transition-colors"
                 >
-                  <div className="flex items-center gap-4 text-left flex-1">
-                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-foreground">{task.title}</h3>
-                      <p className="text-sm text-foreground/60">{task.description}</p>
-                    </div>
-                  </div>
-                  {expandedTask === task.id ? (
-                    <ChevronUp className="h-5 w-5 text-foreground/60" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-foreground/60" />
-                  )}
-                </button>
-
-                {/* Expanded Task Details */}
-                <AnimatePresence>
-                  {expandedTask === task.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="border-t border-border px-4 py-4 space-y-4"
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-foreground/60">Location</p>
-                          <p className="font-medium text-foreground">{task.location}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground/60">Target Trees</p>
-                          <p className="font-medium text-foreground">{task.targetTrees.toLocaleString()}</p>
-                        </div>
+                  <button
+                    onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
+                    className="w-full p-4 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-4 text-left flex-1">
+                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-foreground">Task #{Number(task.id)}</h3>
+                        <p className="text-sm text-foreground/60">{task.description}</p>
                       </div>
+                    </div>
+                    {expandedTask === task.id ? (
+                      <ChevronUp className="h-5 w-5 text-foreground/60" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-foreground/60" />
+                    )}
+                  </button>
 
-                      <Button
-                        onClick={() => setSelectedTask(task)}
-                        className="w-full bg-primary hover:bg-primary/90 text-white"
+                  {/* Expanded Task Details */}
+                  <AnimatePresence>
+                    {expandedTask === task.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="border-t border-border px-4 py-4 space-y-4"
                       >
-                        Open Verification Interface
-                      </Button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-          </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-foreground/60">Location</p>
+                            <p className="font-medium text-foreground">{task.location}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-foreground/60">Proof Requirements</p>
+                            <p className="font-medium text-foreground">{task.proofRequirements}</p>
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => setSelectedTask(task as unknown as VerificationTask)}
+                          className="w-full bg-primary hover:bg-primary/90 text-white"
+                        >
+                          Open Verification Interface
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -186,7 +213,7 @@ export default function ValidatorPage() {
               <div className="p-6 space-y-6">
                 {/* Task Header */}
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">{selectedTask.title}</h2>
+                  <h2 className="text-2xl font-bold text-foreground">Task #{Number(selectedTask.id)}</h2>
                   <p className="text-foreground/60 mt-1">{selectedTask.description}</p>
                 </div>
 
@@ -194,8 +221,8 @@ export default function ValidatorPage() {
                 <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
                   <FileText className="h-5 w-5 text-primary" />
                   <div className="flex-1">
-                    <p className="font-medium text-foreground">IPFS Bundle</p>
-                    <p className="text-sm text-foreground/60">Download verification documents</p>
+                    <p className="font-medium text-foreground">IPFS Hash</p>
+                    <p className="text-sm text-foreground/60 break-all">{selectedTask.ipfsHash}</p>
                   </div>
                   <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                     <Download className="h-4 w-4" />
@@ -210,7 +237,7 @@ export default function ValidatorPage() {
                     Photo Evidence & Drone Footage
                   </h3>
                   <div className="grid grid-cols-3 gap-3">
-                    {mockPhotos.map((photo) => (
+                    {mockPhotos.map((photo: { id: string; url: string }) => (
                       <motion.img
                         key={photo.id}
                         src={photo.url}
@@ -277,17 +304,43 @@ export default function ValidatorPage() {
                   />
                 </div>
 
+                {/* Error Message */}
+                {error && (
+                  <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-4">
-                  <Button onClick={handleApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Approve
+                  <Button onClick={handleApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Approve
+                      </>
+                    )}
                   </Button>
-                  <Button onClick={handleReject} className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2">
-                    <XCircle className="h-4 w-4" />
-                    Reject
+                  <Button onClick={handleReject} className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </>
+                    )}
                   </Button>
-                  <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1">
+                  <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1" disabled={isSubmitting}>
                     Close
                   </Button>
                 </div>

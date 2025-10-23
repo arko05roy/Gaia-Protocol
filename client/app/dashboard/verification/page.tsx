@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { useTaskContext } from "@/lib/task-context"
+import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Download, CheckCircle2, ChevronDown, ChevronUp, ImageIcon, FileText, MapPin, Cloud, Eye } from "lucide-react"
+import { Download, CheckCircle2, ChevronDown, ChevronUp, ImageIcon, FileText, MapPin, Cloud, Eye, Loader, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useGetTotalTasks, useGetTasks, useSubmitValidatorVote, TaskStatus } from "@/hooks"
+import { useAccount } from "wagmi"
 import DashboardHeader from "@/components/dashboard/header"
 
 interface VerificationStep {
@@ -34,53 +35,71 @@ const mockGPSData = [
 ]
 
 export default function VerificationPage() {
-  const { tasks, updateTaskStatus } = useTaskContext()
-  const [selectedTask, setSelectedTask] = useState<string | null>(null)
-  const [expandedTask, setExpandedTask] = useState<string | null>(null)
+  const { address } = useAccount()
+  const { totalTasks } = useGetTotalTasks()
+  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
+  const { submitValidatorVote, isPending: isSubmitting, isSuccess: voteSuccess } = useSubmitValidatorVote()
+  
+  const [selectedTask, setSelectedTask] = useState<bigint | null>(null)
+  const [expandedTask, setExpandedTask] = useState<bigint | null>(null)
   const [verificationSteps, setVerificationSteps] = useState(mockVerificationSteps)
-  const [confidence, setConfidence] = useState(85) // Changed default to 85%
+  const [confidence, setConfidence] = useState(85)
   const [justification, setJustification] = useState(
     "All evidence checks out. GPS data consistent, drone footage shows healthy plantation, local authority signature verified. CO₂ estimate aligns with scientific models for mangrove carbon sequestration.",
-  ) // Added prefilled justification
-  const [voteChoice, setVoteChoice] = useState<"approve" | "reject" | null>(null) // Added vote choice state
+  )
+  const [voteChoice, setVoteChoice] = useState<"approve" | "reject" | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
-  const [successSubtitle, setSuccessSubtitle] = useState("") // Added subtitle for success modal
+  const [successSubtitle, setSuccessSubtitle] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
-  const pendingTasks = tasks.filter((task) => task.status === "pending")
+  // Filter tasks that need verification (not verified or rejected)
+  const pendingTasks = (tasks || []).filter((t) => t.status !== TaskStatus.Verified && t.status !== TaskStatus.Rejected)
 
   const handleStepToggle = (stepId: string) => {
     setVerificationSteps(
-      verificationSteps.map((step) => (step.id === stepId ? { ...step, completed: !step.completed } : step)),
+      verificationSteps.map((step: VerificationStep) => (step.id === stepId ? { ...step, completed: !step.completed } : step)),
     )
   }
 
-  const handleSubmit = () => {
-    if (!voteChoice) return
-
-    if (selectedTask) {
-      updateTaskStatus(selectedTask, voteChoice === "approve" ? "verified" : "pending")
+  const handleSubmit = async () => {
+    if (!voteChoice || !selectedTask || !address) {
+      setError("Invalid submission")
+      return
     }
 
-    setSuccessMessage("Verification Submitted Successfully")
-    setSuccessSubtitle(
-      `Task #${selectedTask} ${voteChoice === "approve" ? "approved" : "rejected"} with ${confidence}% confidence`,
-    )
-    setShowSuccessModal(true)
-
-    setTimeout(() => {
-      setShowSuccessModal(false)
-      setSelectedTask(null)
-      setVerificationSteps(mockVerificationSteps)
-      setConfidence(85)
-      setJustification(
-        "All evidence checks out. GPS data consistent, drone footage shows healthy plantation, local authority signature verified. CO₂ estimate aligns with scientific models for mangrove carbon sequestration.",
-      )
-      setVoteChoice(null)
-    }, 3000)
+    try {
+      setError(null)
+      const approved = voteChoice === "approve"
+      submitValidatorVote(selectedTask, approved, justification, BigInt(confidence))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit vote")
+    }
   }
 
-  const currentTask = tasks.find((t) => t.id === selectedTask)
+  // Auto-close modal on success
+  React.useEffect(() => {
+    if (voteSuccess) {
+      setSuccessMessage("Verification Submitted Successfully")
+      setSuccessSubtitle(
+        `Task #${selectedTask} ${voteChoice === "approve" ? "approved" : "rejected"} with ${confidence}% confidence`,
+      )
+      setShowSuccessModal(true)
+      setTimeout(() => {
+        setShowSuccessModal(false)
+        setSelectedTask(null)
+        setVerificationSteps(mockVerificationSteps)
+        setConfidence(85)
+        setJustification(
+          "All evidence checks out. GPS data consistent, drone footage shows healthy plantation, local authority signature verified. CO₂ estimate aligns with scientific models for mangrove carbon sequestration.",
+        )
+        setVoteChoice(null)
+      }, 3000)
+    }
+  }, [voteSuccess, selectedTask, voteChoice, confidence])
+
+  const currentTask = tasks?.find((t) => t.id === selectedTask)
 
   return (
     <div className="flex flex-col h-full">
@@ -97,7 +116,14 @@ export default function VerificationPage() {
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-foreground">Pending Reviews</h2>
 
-            {pendingTasks.length === 0 ? (
+            {tasksLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-foreground/60">Loading tasks for verification...</p>
+                </div>
+              </div>
+            ) : pendingTasks.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-foreground/60">No pending tasks to verify</p>
               </div>
@@ -105,7 +131,7 @@ export default function VerificationPage() {
               <div className="space-y-3">
                 {pendingTasks.map((task) => (
                   <motion.div
-                    key={task.id}
+                    key={Number(task.id)}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="border border-border rounded-lg bg-card hover:bg-card/80 transition-colors"
@@ -118,7 +144,7 @@ export default function VerificationPage() {
                         <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
                         <div>
                           <h3 className="font-semibold text-foreground">
-                            Task #{task.id} – {task.title}
+                            Task #{Number(task.id)}
                           </h3>
                           <p className="text-sm text-foreground/60">{task.description}</p>
                         </div>
@@ -139,18 +165,14 @@ export default function VerificationPage() {
                           exit={{ opacity: 0, height: 0 }}
                           className="border-t border-border px-4 py-4 space-y-4"
                         >
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <p className="text-sm text-foreground/60">Creator</p>
-                              <p className="font-medium text-foreground">{task.creator}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-foreground/60">CO₂ Claim</p>
-                              <p className="font-medium text-foreground">{task.coTarget.toLocaleString()} tons</p>
-                            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-foreground/60">Location</p>
                               <p className="font-medium text-foreground">{task.location}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-foreground/60">Proof Requirements</p>
+                              <p className="font-medium text-foreground">{task.proofRequirements}</p>
                             </div>
                           </div>
 
@@ -192,21 +214,17 @@ export default function VerificationPage() {
                 {/* Section 1: Task Information */}
                 <div className="border-b border-border pb-6">
                   <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Task #{currentTask.id} – {currentTask.title}
+                    Task #{Number(currentTask.id)}
                   </h2>
                   <p className="text-foreground/60 mb-4">{currentTask.description}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-foreground/60">Funding Goal</p>
-                      <p className="font-semibold text-foreground">${currentTask.fundingGoal.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground/60">CO₂ Claim</p>
-                      <p className="font-semibold text-foreground">{currentTask.coTarget.toLocaleString()} tons</p>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <p className="text-sm text-foreground/60">Location</p>
                       <p className="font-semibold text-foreground">{currentTask.location}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-foreground/60">Proof Requirements</p>
+                      <p className="font-semibold text-foreground">{currentTask.proofRequirements}</p>
                     </div>
                   </div>
 
@@ -214,8 +232,8 @@ export default function VerificationPage() {
                   <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
                     <FileText className="h-5 w-5 text-primary flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="font-medium text-foreground">IPFS Proof Bundle</p>
-                      <p className="text-sm text-foreground/60">Download verification documents</p>
+                      <p className="font-medium text-foreground">IPFS Hash</p>
+                      <p className="text-sm text-foreground/60 break-all">{currentTask.ipfsHash}</p>
                     </div>
                     <Button variant="outline" size="sm" className="gap-2 bg-transparent flex-shrink-0">
                       <Download className="h-4 w-4" />
@@ -235,7 +253,7 @@ export default function VerificationPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground/60 mb-3">GPS-Tagged Images</p>
                     <div className="grid grid-cols-3 gap-3">
-                      {mockPhotos.map((photo) => (
+                      {mockPhotos.map((photo: { id: string; url: string }) => (
                         <motion.img
                           key={photo.id}
                           src={photo.url}
@@ -273,7 +291,7 @@ export default function VerificationPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {mockGPSData.map((row, idx) => (
+                          {mockGPSData.map((row: { timestamp: string; latitude: string; longitude: string; status: string }, idx: number) => (
                             <tr key={idx} className="border-b border-border/50 hover:bg-foreground/5">
                               <td className="py-2 px-3 text-foreground">{row.timestamp}</td>
                               <td className="py-2 px-3 text-foreground">{row.latitude}</td>
@@ -361,7 +379,7 @@ export default function VerificationPage() {
                 <div className="border-b border-border pb-6">
                   <h3 className="font-semibold text-foreground text-lg mb-4">Assessment Summary</h3>
                   <div className="space-y-2">
-                    {verificationSteps.map((step) => (
+                    {verificationSteps.map((step: VerificationStep) => (
                       <label
                         key={step.id}
                         className="flex items-center gap-3 p-3 rounded-lg hover:bg-foreground/5 cursor-pointer transition-colors"
@@ -442,17 +460,34 @@ export default function VerificationPage() {
                     />
                   </div>
 
+                  {/* Error Message */}
+                  {error && (
+                    <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4">
                     <Button
                       onClick={handleSubmit}
-                      disabled={!voteChoice}
+                      disabled={!voteChoice || isSubmitting}
                       className="flex-1 bg-primary hover:bg-primary/90 text-white disabled:opacity-50 disabled:cursor-not-allowed gap-2"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Sign & Submit Transaction
+                      {isSubmitting ? (
+                        <>
+                          <Loader className="h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Sign & Submit Transaction
+                        </>
+                      )}
                     </Button>
-                    <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1">
+                    <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1" disabled={isSubmitting}>
                       Close
                     </Button>
                   </div>

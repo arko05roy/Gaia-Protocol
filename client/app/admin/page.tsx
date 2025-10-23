@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import React, { useState } from "react"
 import {
   BarChart,
   Bar,
@@ -16,8 +17,14 @@ import {
   Pie,
   Cell,
 } from "recharts"
+import { useGetTotalTasks, useGetTasks, useGetAllValidators, useGetMarketStats, useGetDatasetStats, useGetStatsByProjectType, useCreateProposal, useAuthorizeResearcher, useRevokeResearcher, TaskStatus } from "@/hooks"
+import { useAccount } from "wagmi"
 import { Card } from "@/components/ui/card"
-import { TrendingUp, Users, CheckCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { TrendingUp, Users, CheckCircle, Loader, Plus, UserCheck, UserX, FileText, X, AlertCircle } from "lucide-react"
+import { formatUnits } from "viem"
+import { motion, AnimatePresence } from "framer-motion"
 
 const projectsData = [
   { month: "Jan", active: 12, completed: 3, pending: 5 },
@@ -92,10 +99,82 @@ const mockProjects = [
 ]
 
 export default function AdminPage() {
-  const totalFunded = mockProjects.reduce((sum, p) => sum + p.funding, 0)
-  const totalGoal = mockProjects.reduce((sum, p) => sum + p.goal, 0)
-  const activeProjects = mockProjects.filter((p) => p.status === "Active").length
-  const totalValidators = mockProjects.reduce((sum, p) => sum + p.validators, 0)
+  const { address } = useAccount()
+  const { totalTasks } = useGetTotalTasks()
+  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
+  const { validators, isLoading: validatorsLoading } = useGetAllValidators()
+  const { totalVolume, isLoading: statsLoading } = useGetMarketStats(1n)
+  const { totalEntries, totalCO2, totalCost, avgCostPerTon, isLoading: dataStatsLoading } = useGetDatasetStats()
+  const { createProposal, isPending: isCreatingProposal, isSuccess: proposalSuccess } = useCreateProposal()
+  const { authorizeResearcher, isPending: isAuthorizing, isSuccess: authorizeSuccess } = useAuthorizeResearcher()
+  const { revokeResearcher, isPending: isRevoking, isSuccess: revokeSuccess } = useRevokeResearcher()
+
+  const [showProposalModal, setShowProposalModal] = useState(false)
+  const [showValidatorModal, setShowValidatorModal] = useState(false)
+  const [proposalDescription, setProposalDescription] = useState("")
+  const [targetContract, setTargetContract] = useState("")
+  const [callData, setCallData] = useState("")
+  const [validatorAddress, setValidatorAddress] = useState("")
+  const [validatorAction, setValidatorAction] = useState<"authorize" | "revoke">("authorize")
+  const [error, setError] = useState<string | null>(null)
+  const [selectedProjectType, setSelectedProjectType] = useState<string>("Reforestation")
+  const { entryCount, totalCO2: typeCO2, avgCO2, isLoading: typeStatsLoading } = useGetStatsByProjectType(selectedProjectType)
+
+  // Calculate metrics from real data
+  const activeProjects = (tasks || []).filter((t) => t.status === TaskStatus.Funded).length
+  const totalFunded = tasks && tasks.length > 0 ? Number(formatUnits(totalVolume || 0n, 18)) : 0
+  const totalValidators = validators?.length || 0
+  const totalGoal = (tasks || []).reduce((sum, t) => sum + Number(formatUnits(t.estimatedCost, 18)), 0)
+  const isLoading = tasksLoading || validatorsLoading || statsLoading
+
+  const handleCreateProposal = () => {
+    if (!proposalDescription || !targetContract || !callData) {
+      setError("All fields are required")
+      return
+    }
+    try {
+      setError(null)
+      createProposal(proposalDescription, targetContract as `0x${string}`, callData as `0x${string}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create proposal")
+    }
+  }
+
+  const handleValidatorAction = () => {
+    if (!validatorAddress) {
+      setError("Validator address is required")
+      return
+    }
+    try {
+      setError(null)
+      if (validatorAction === "authorize") {
+        authorizeResearcher(validatorAddress as `0x${string}`)
+      } else {
+        revokeResearcher(validatorAddress as `0x${string}`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to manage validator")
+    }
+  }
+
+  React.useEffect(() => {
+    if (proposalSuccess) {
+      setShowProposalModal(false)
+      setProposalDescription("")
+      setTargetContract("")
+      setCallData("")
+    }
+  }, [proposalSuccess])
+
+  React.useEffect(() => {
+    if (authorizeSuccess || revokeSuccess) {
+      setShowValidatorModal(false)
+      setValidatorAddress("")
+    }
+  }, [authorizeSuccess, revokeSuccess])
+
+  const projectTypes = ["Reforestation", "Mangrove Restoration", "Renewable Energy", "Coral Reef Protection"]
 
   return (
     <div className="min-h-screen bg-background">
@@ -135,7 +214,9 @@ export default function AdminPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Total Validators</div>
-                <div className="text-3xl font-bold text-primary">{totalValidators}</div>
+                <div className="text-3xl font-bold text-primary">
+                  {isLoading ? <Loader className="h-8 w-8 animate-spin" /> : totalValidators}
+                </div>
               </div>
               <Users className="text-primary/30" size={32} />
             </div>
@@ -144,13 +225,101 @@ export default function AdminPage() {
           <Card className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Funding Goal</div>
-                <div className="text-3xl font-bold text-primary">${(totalGoal / 1000).toFixed(0)}K</div>
+                <div className="text-sm text-muted-foreground mb-1">Total CO₂ Offset</div>
+                <div className="text-3xl font-bold text-primary">
+                  {dataStatsLoading ? <Loader className="h-8 w-8 animate-spin" /> : `${Number(formatUnits(totalCO2 || 0n, 0)).toLocaleString()} tons`}
+                </div>
               </div>
               <CheckCircle className="text-primary/30" size={32} />
             </div>
           </Card>
         </div>
+
+        {/* Admin Actions */}
+        <div className="flex gap-4 mb-8">
+          <Button
+            onClick={() => setShowProposalModal(true)}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Governance Proposal
+          </Button>
+          <Button
+            onClick={() => setShowValidatorModal(true)}
+            variant="outline"
+          >
+            <UserCheck className="h-4 w-4 mr-2" />
+            Manage Validators
+          </Button>
+        </div>
+
+        {/* Data Registry Stats */}
+        <Card className="p-6 mb-8">
+          <h3 className="text-lg font-bold mb-4">Data Registry Analytics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Total Entries</p>
+              <p className="text-2xl font-bold text-primary">
+                {dataStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : Number(totalEntries || 0n)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Total CO₂ Recorded</p>
+              <p className="text-2xl font-bold text-primary">
+                {dataStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : `${Number(formatUnits(totalCO2 || 0n, 0)).toLocaleString()} tons`}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Total Cost</p>
+              <p className="text-2xl font-bold text-primary">
+                {dataStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : `$${Number(formatUnits(totalCost || 0n, 18)).toLocaleString()}`}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Avg Cost/Ton</p>
+              <p className="text-2xl font-bold text-primary">
+                {dataStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : `$${Number(formatUnits(avgCostPerTon || 0n, 18)).toFixed(2)}`}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Project Type Stats */}
+        <Card className="p-6 mb-8">
+          <h3 className="text-lg font-bold mb-4">Project Type Breakdown</h3>
+          <div className="flex gap-2 mb-4">
+            {projectTypes.map((type) => (
+              <Button
+                key={type}
+                variant={selectedProjectType === type ? "default" : "outline"}
+                onClick={() => setSelectedProjectType(type)}
+                size="sm"
+              >
+                {type}
+              </Button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Entry Count</p>
+              <p className="text-2xl font-bold text-primary">
+                {typeStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : Number(entryCount || 0n)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Total CO₂</p>
+              <p className="text-2xl font-bold text-primary">
+                {typeStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : `${Number(formatUnits(typeCO2 || 0n, 0)).toLocaleString()} tons`}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Average CO₂</p>
+              <p className="text-2xl font-bold text-primary">
+                {typeStatsLoading ? <Loader className="h-6 w-6 animate-spin" /> : `${Number(formatUnits(avgCO2 || 0n, 0)).toLocaleString()} tons`}
+              </p>
+            </div>
+          </div>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <Card className="p-6">
@@ -228,85 +397,298 @@ export default function AdminPage() {
 
           {/* Projects Table */}
           <Card className="p-6 lg:col-span-2 overflow-hidden">
-            <h3 className="text-lg font-bold mb-4">Recent Projects</h3>
+            <h3 className="text-lg font-bold mb-4">Recent Tasks</h3>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border">
+                    <tr>
+                      <th className="text-left py-2 font-semibold">Task ID</th>
+                      <th className="text-left py-2 font-semibold">Description</th>
+                      <th className="text-left py-2 font-semibold">Status</th>
+                      <th className="text-left py-2 font-semibold">Funding</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(tasks || []).slice(0, 5).map((task) => (
+                      <tr key={Number(task.id)} className="border-b border-border hover:bg-muted/50">
+                        <td className="py-3 font-semibold text-primary">#{Number(task.id)}</td>
+                        <td className="py-3 line-clamp-1">{task.description}</td>
+                        <td className="py-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              task.status === TaskStatus.Funded
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {task.status === TaskStatus.Proposed ? "Proposed" : task.status === TaskStatus.Funded ? "Funded" : "Active"}
+                          </span>
+                        </td>
+                        <td className="py-3 font-semibold">${Number(formatUnits(task.estimatedCost, 18)).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Full Tasks Table */}
+        <Card className="p-6 overflow-hidden">
+          <h3 className="text-lg font-bold mb-4">All Tasks</h3>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border">
+              <table className="w-full">
+                <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="text-left py-2 font-semibold">Project ID</th>
-                    <th className="text-left py-2 font-semibold">Creator</th>
-                    <th className="text-left py-2 font-semibold">Status</th>
-                    <th className="text-left py-2 font-semibold">Funding</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Task ID</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Description</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Location</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Estimated Cost</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Expected CO₂</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mockProjects.slice(0, 5).map((project) => (
-                    <tr key={project.id} className="border-b border-border hover:bg-muted/50">
-                      <td className="py-3 font-semibold text-primary">{project.id}</td>
-                      <td className="py-3">{project.creator}</td>
-                      <td className="py-3">
+                  {(tasks || []).map((task) => (
+                    <tr key={Number(task.id)} className="border-b border-border hover:bg-muted/50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-semibold text-primary">#{Number(task.id)}</td>
+                      <td className="px-6 py-4 text-sm font-medium line-clamp-2">{task.description}</td>
+                      <td className="px-6 py-4 text-sm">{task.location}</td>
+                      <td className="px-6 py-4 text-sm">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            project.status === "Active"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            task.status === TaskStatus.Funded ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {project.status}
+                          {task.status === TaskStatus.Proposed ? "Proposed" : task.status === TaskStatus.Funded ? "Funded" : "Active"}
                         </span>
                       </td>
-                      <td className="py-3 font-semibold">
-                        ${project.funding.toLocaleString()} / ${project.goal.toLocaleString()}
-                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold">${Number(formatUnits(task.estimatedCost, 18)).toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-primary">{Number(formatUnits(task.expectedCO2, 0)).toLocaleString()} tons</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </Card>
-        </div>
-
-        {/* Full Projects Table */}
-        <Card className="p-6 overflow-hidden">
-          <h3 className="text-lg font-bold mb-4">All Projects</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Project ID</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Project Name</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Creator</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Total Funding</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Validators</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockProjects.map((project) => (
-                  <tr key={project.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-semibold text-primary">{project.id}</td>
-                    <td className="px-6 py-4 text-sm font-medium">{project.name}</td>
-                    <td className="px-6 py-4 text-sm">{project.creator}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          project.status === "Active" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold">
-                      ${project.funding.toLocaleString()} / ${project.goal.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-primary">{project.validators}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          )}
         </Card>
       </div>
+
+      {/* Create Proposal Modal */}
+      <AnimatePresence>
+        {showProposalModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowProposalModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-lg shadow-xl max-w-2xl w-full p-6 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Create Governance Proposal</h2>
+                <button
+                  onClick={() => setShowProposalModal(false)}
+                  className="text-foreground/60 hover:text-foreground transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <textarea
+                    value={proposalDescription}
+                    onChange={(e) => setProposalDescription(e.target.value)}
+                    placeholder="Describe the proposal..."
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    rows={4}
+                    disabled={isCreatingProposal}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Target Contract Address</label>
+                  <Input
+                    type="text"
+                    value={targetContract}
+                    onChange={(e) => setTargetContract(e.target.value)}
+                    placeholder="0x..."
+                    disabled={isCreatingProposal}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Call Data (Hex)</label>
+                  <Input
+                    type="text"
+                    value={callData}
+                    onChange={(e) => setCallData(e.target.value)}
+                    placeholder="0x..."
+                    disabled={isCreatingProposal}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Encoded function call data for the proposal
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowProposalModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isCreatingProposal}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateProposal}
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isCreatingProposal}
+                >
+                  {isCreatingProposal ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Create Proposal
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Validator Management Modal */}
+      <AnimatePresence>
+        {showValidatorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowValidatorModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full p-6 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Manage Validators</h2>
+                <button
+                  onClick={() => setShowValidatorModal(false)}
+                  className="text-foreground/60 hover:text-foreground transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Action</label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={validatorAction === "authorize" ? "default" : "outline"}
+                      onClick={() => setValidatorAction("authorize")}
+                      className="flex-1"
+                    >
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Authorize
+                    </Button>
+                    <Button
+                      variant={validatorAction === "revoke" ? "default" : "outline"}
+                      onClick={() => setValidatorAction("revoke")}
+                      className="flex-1"
+                    >
+                      <UserX className="h-4 w-4 mr-2" />
+                      Revoke
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Validator Address</label>
+                  <Input
+                    type="text"
+                    value={validatorAddress}
+                    onChange={(e) => setValidatorAddress(e.target.value)}
+                    placeholder="0x..."
+                    disabled={isAuthorizing || isRevoking}
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowValidatorModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isAuthorizing || isRevoking}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleValidatorAction}
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isAuthorizing || isRevoking}
+                >
+                  {isAuthorizing || isRevoking ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : validatorAction === "authorize" ? (
+                    "Authorize Validator"
+                  ) : (
+                    "Revoke Validator"
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -3,10 +3,11 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useTaskContext } from "@/lib/task-context"
+import { useCreateTask } from "@/hooks"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { parseEther } from "viem"
 
 interface CreateTaskModalProps {
   isOpen: boolean
@@ -14,7 +15,7 @@ interface CreateTaskModalProps {
 }
 
 export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
-  const { addTask } = useTaskContext()
+  const { createTask, isPending, isSuccess, hash } = useCreateTask()
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -22,32 +23,43 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
     coTarget: "",
     location: "",
     category: "reforestation",
+    proofRequirements: "",
+    ipfsHash: "",
+    deadline: "",
   })
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    setError(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    setError(null)
 
-    addTask({
-      title: formData.title,
-      description: formData.description,
-      fundingGoal: Number(formData.fundingGoal),
-      coTarget: Number(formData.coTarget),
-      location: formData.location,
-      category: formData.category,
-    })
+    try {
+      const estimatedCost = parseEther(formData.fundingGoal || "0")
+      const expectedCO2 = BigInt(Math.floor(Number(formData.coTarget) * 1e18))
+      const deadline = BigInt(Math.floor(new Date(formData.deadline).getTime() / 1000))
 
-    setIsSubmitting(false)
-    onClose()
+      createTask(
+        formData.description,
+        estimatedCost,
+        expectedCO2,
+        formData.location,
+        deadline,
+        formData.proofRequirements,
+        formData.ipfsHash
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create task")
+    }
+  }
+
+  const handleSuccess = () => {
     setFormData({
       title: "",
       description: "",
@@ -55,7 +67,15 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
       coTarget: "",
       location: "",
       category: "reforestation",
+      proofRequirements: "",
+      ipfsHash: "",
+      deadline: "",
     })
+    setTimeout(() => onClose(), 1500)
+  }
+
+  if (isSuccess) {
+    setTimeout(handleSuccess, 1000)
   }
 
   if (!isOpen) return null
@@ -133,7 +153,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
 
             {/* Funding Goal */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Funding Goal (USD)</label>
+              <label className="block text-sm font-semibold mb-2">Funding Goal (cUSD)</label>
               <Input
                 type="number"
                 name="fundingGoal"
@@ -141,6 +161,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                 value={formData.fundingGoal}
                 onChange={handleChange}
                 required
+                step="0.01"
                 className="w-full"
               />
             </div>
@@ -154,21 +175,76 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                 value={formData.coTarget}
                 onChange={handleChange}
                 required
+                step="0.01"
                 className="w-full"
               />
             </div>
 
+            {/* Deadline */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">Deadline</label>
+              <Input
+                type="datetime-local"
+                name="deadline"
+                value={formData.deadline}
+                onChange={handleChange}
+                required
+                className="w-full"
+              />
+            </div>
+
+            {/* Proof Requirements */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">Proof Requirements</label>
+              <textarea
+                name="proofRequirements"
+                placeholder="Describe what proof is required to verify task completion..."
+                value={formData.proofRequirements}
+                onChange={handleChange}
+                required
+                rows={3}
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background resize-none"
+              />
+            </div>
+
+            {/* IPFS Hash */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">IPFS Hash (optional)</label>
+              <Input
+                type="text"
+                name="ipfsHash"
+                placeholder="QmXxxx..."
+                value={formData.ipfsHash}
+                onChange={handleChange}
+                className="w-full"
+              />
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Success Message */}
+            {isSuccess && (
+              <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+                Task created successfully! Hash: {hash?.slice(0, 10)}...
+              </div>
+            )}
+
             {/* Buttons */}
             <div className="flex gap-3 pt-4 border-t border-border">
-              <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent" disabled={isPending}>
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isPending || isSuccess}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {isSubmitting ? "Creating..." : "Create Task"}
+                {isPending ? "Creating..." : isSuccess ? "Created!" : "Create Task"}
               </Button>
             </div>
           </form>

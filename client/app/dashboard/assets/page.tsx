@@ -1,32 +1,35 @@
 "use client"
 
+import React, { useState } from "react"
 import { motion } from "framer-motion"
-import { useTaskContext } from "@/lib/task-context"
-import { User, Leaf, CheckCircle, Wallet, TrendingUp } from "lucide-react"
+import { User, Leaf, CheckCircle, Wallet, TrendingUp, Loader } from "lucide-react"
+import { useGetTotalTasks, useGetTasks, useGetBalanceOfBatch, TaskStatus } from "@/hooks"
+import { useAccount } from "wagmi"
+import { formatUnits } from "viem"
 import DashboardHeader from "@/components/dashboard/header"
 
 export default function MyAssetsPage() {
-  const { tasks, userData } = useTaskContext()
+  const { address } = useAccount()
+  const { totalTasks } = useGetTotalTasks()
+  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
+  const { balances, isLoading: balancesLoading } = useGetBalanceOfBatch(address || undefined, taskIds.length > 0 ? taskIds : undefined)
 
-  const completedTasks = tasks.filter((t) => t.status === "verified" || t.status === "completed")
+  const completedTasks = (tasks || []).filter((t) => t.status === TaskStatus.Verified)
 
-  const totalCreditsEarned = completedTasks.reduce((sum, task) => {
-    const taskCredits = (task.stakeholders || []).reduce((stakeholderSum, stakeholder) => {
-      const creditsEarned = (task.coTarget * stakeholder.sharePercentage) / 100
-      return stakeholderSum + creditsEarned
-    }, 0)
-    return sum + taskCredits
+  // Calculate total credits from verified tasks
+  const totalCreditsEarned = completedTasks.reduce((sum, task, idx) => {
+    const balance = balances?.[idx] ? Number(formatUnits(balances[idx], 18)) : 0
+    return sum + balance
   }, 0)
 
-  const remainingCredits = totalCreditsEarned - userData.soldCredits
-
   const userStats = {
-    name: "Aashi Kaur",
-    tasksCreated: tasks.length,
-    completionPercentage: tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0,
-    vaultBalance: userData.vaultBalance,
-    carbonCreditsReceived: remainingCredits,
+    tasksCreated: tasks?.length || 0,
+    completionPercentage: tasks && tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0,
+    carbonCreditsReceived: Math.round(totalCreditsEarned * 100) / 100,
   }
+
+  const isLoading = tasksLoading || balancesLoading
 
   return (
     <div className="flex flex-col h-full">
@@ -50,7 +53,7 @@ export default function MyAssetsPage() {
                 <User className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-foreground">{userStats.name}</h2>
+                <h2 className="text-2xl font-bold text-foreground">{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connected Wallet"}</h2>
                 <p className="text-foreground/60">Environmental Impact Contributor</p>
               </div>
             </div>
@@ -73,13 +76,6 @@ export default function MyAssetsPage() {
                 <p className="text-2xl font-bold text-foreground">{userStats.completionPercentage}%</p>
               </div>
 
-              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Wallet className="h-5 w-5 text-primary" />
-                  <p className="text-sm text-foreground/60">Vault Balance</p>
-                </div>
-                <p className="text-2xl font-bold text-foreground">${userStats.vaultBalance.toLocaleString()}</p>
-              </div>
 
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <div className="flex items-center gap-2 mb-2">
@@ -118,7 +114,14 @@ export default function MyAssetsPage() {
               <h3 className="text-xl font-semibold text-foreground">Completed & Verified Projects</h3>
             </div>
 
-            {completedTasks.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-foreground/60">Loading your assets...</p>
+                </div>
+              </div>
+            ) : completedTasks.length === 0 ? (
               <div className="p-6 text-center text-foreground/60">
                 <p>No completed projects yet. Create and verify projects to see them here.</p>
               </div>
@@ -127,41 +130,34 @@ export default function MyAssetsPage() {
                 <table className="w-full">
                   <thead className="bg-foreground/5 border-b border-border">
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Project Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Progress</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Task ID</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">CO₂ Credits</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Vault Earned</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Date</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Rewards</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Type</th>
                     </tr>
                   </thead>
                   <tbody>
                     {completedTasks.map((task, index) => {
-                      const projectCredits = (task.stakeholders || []).reduce((sum, stakeholder) => {
-                        const creditsEarned = (task.coTarget * stakeholder.sharePercentage) / 100
-                        const remaining = creditsEarned - (stakeholder.creditsSold || 0)
-                        return sum + remaining
-                      }, 0)
-                      const vaultEarned = (task.stakeholders || []).reduce((sum, stakeholder) => {
-                        return sum + (stakeholder.creditsSold || 0) * 25
-                      }, 0)
+                      const projectCredits = balances?.[index] ? Number(formatUnits(balances[index], 18)) : 0
 
                       return (
                         <motion.tr
-                          key={task.id}
+                          key={Number(task.id)}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.05 }}
                           className="border-b border-border hover:bg-foreground/5 transition-colors"
                         >
-                          <td className="px-6 py-4 text-foreground font-medium">{task.title}</td>
+                          <td className="px-6 py-4 text-foreground font-medium">Task #{Number(task.id)}</td>
                           <td className="px-6 py-4">
                             <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
                               100%
                             </span>
                           </td>
                           <td className="px-6 py-4 font-semibold text-primary">{projectCredits.toLocaleString()}</td>
-                          <td className="px-6 py-4 text-foreground">${vaultEarned.toLocaleString()}</td>
-                          <td className="px-6 py-4 text-foreground/60">{task.createdAt.toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-foreground">-</td>
+                          <td className="px-6 py-4 text-foreground/60">On-chain</td>
                         </motion.tr>
                       )
                     })}

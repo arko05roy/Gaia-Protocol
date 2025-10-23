@@ -1,30 +1,43 @@
+"use client"
+
 import { Card } from "@/components/ui/card"
 import { HelpCircle } from "lucide-react"
-
-const stats = [
-  {
-    label: "Total carbon bridged",
-    value: "21,890,661",
-    icon: "🌍",
-  },
-  {
-    label: "Total carbon locked",
-    value: "19,905,783",
-    icon: "🔒",
-  },
-  {
-    label: "Total liquidity",
-    value: "1,810,027",
-    icon: "💧",
-  },
-  {
-    label: "Total carbon retired",
-    value: "210,338",
-    icon: "✓",
-  },
-]
+import { useGetTotalTasks, useGetMarketStats, useGetTotalRetired } from "@/hooks"
+import { formatUnits } from "viem"
 
 export default function StatsCards() {
+  const { totalTasks, isLoading: tasksLoading } = useGetTotalTasks()
+  const { totalVolume, totalTrades, activeOrderCount, isLoading: statsLoading } = useGetMarketStats(1n)
+  const { totalRetired, isLoading: retiredLoading } = useGetTotalRetired(1n)
+
+  const formatNumber = (value: bigint | undefined) => {
+    if (!value) return "0"
+    return Number(formatUnits(value, 0)).toLocaleString()
+  }
+
+  const stats = [
+    {
+      label: "Total Tasks",
+      value: tasksLoading ? "Loading..." : formatNumber(totalTasks),
+      icon: "🌍",
+    },
+    {
+      label: "Active Orders",
+      value: statsLoading ? "Loading..." : formatNumber(activeOrderCount),
+      icon: "🔒",
+    },
+    {
+      label: "Market Volume",
+      value: statsLoading ? "Loading..." : formatNumber(totalVolume),
+      icon: "💧",
+    },
+    {
+      label: "Total Carbon Retired",
+      value: retiredLoading ? "Loading..." : formatNumber(totalRetired),
+      icon: "✓",
+    },
+  ]
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, index) => (
