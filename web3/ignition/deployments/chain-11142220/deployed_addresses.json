@@ -1,0 +1,12 @@
+{
+  "GaiaModule#ModelRegistry": "0xeEc45Fd463EA8137e46170694414703Ebb791119",
+  "GaiaModule#PredictionMarket": "0x8c7Ffc95fcD2b9Dfb48272A0cEb6f54e7CE77b14",
+  "GaiaModule#TaskRegistry": "0x5754C71c2474FE8F2B83C43432Faf0AC94cc24A5",
+  "GaiaModule#CollateralManager": "0x98eFA762eDa5FB0C3BA02296c583A5a542c66c8b",
+  "GaiaModule#DataRegistry": "0x31DA867c6C12eCEBbb738d97198792901431e228",
+  "GaiaModule#FundingPool": "0x89a87B531E37731A77B1E40B6B8B5bCb58819059",
+  "GaiaModule#CarbonCreditMinter": "0xC3Fd43907aFBCA63298bA076f9ED5C84DEb7BE21",
+  "GaiaModule#VerificationManager": "0x6C97C69854e745FA6565DDD7f2f200D823ECC7c1",
+  "GaiaModule#CarbonMarketplace": "0xAFF32cce8D5eCbB1AFD38A87f04A1b8db858eA6D",
+  "GaiaModule#GovernanceDAO": "0x0a6cA23be18a6F7C24413d288dced887fCFC673e"
+}
