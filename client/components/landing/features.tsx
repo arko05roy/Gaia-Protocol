@@ -1,61 +1,61 @@
-"use client"
+import { Satellite, Radio, MapPin, Shield } from 'lucide-react';
 
-import { Card } from "@/components/ui/card"
-import { Leaf, Lock, Zap, TrendingUp } from "lucide-react"
+export default function ProofOfImpact() {
+  const verificationMethods = [
+    { icon: MapPin, label: 'GPS Coordinates' },
+    { icon: Satellite, label: 'Drone Footage' },
+    { icon: Radio, label: 'IoT Data' },
+    { icon: Shield, label: 'Smart Contracts' },
+  ];
 
-const features = [
-  {
-    icon: Leaf,
-    title: "Plant trees with transparency",
-    description: "Every action is tracked and verified on the blockchain for complete transparency.",
-  },
-  {
-    icon: Lock,
-    title: "Fund verified eco-projects",
-    description: "Support projects that have been thoroughly vetted and proven to create real impact.",
-  },
-  {
-    icon: Zap,
-    title: "Earn carbon credit rewards",
-    description: "Get rewarded with carbon credits for your contributions to environmental projects.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Track your real-world impact",
-    description: "Monitor your contributions and see the tangible difference you're making.",
-  },
-]
-
-export default function Features() {
   return (
-    <section id="projects" className="py-20 px-4 sm:px-6 lg:px-8 bg-secondary/30">
-      <div className="mx-auto max-w-7xl">
+    <section id="proof-of-impact" className="bg-gaia-yellow py-24 px-6">
+      <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4">Why Choose Gaia Protocol?</h2>
-          <p className="text-lg text-foreground/70 max-w-2xl mx-auto">
-            We're building the future of environmental impact through transparency, verification, and community.
+          <h2 className="text-5xl md:text-6xl font-serif font-bold mb-6">
+            Proof of Impact
+          </h2>
+          <p className="text-xl md:text-2xl max-w-3xl mx-auto leading-relaxed mb-8">
+            This verification is our consensus. It's no longer just Proof of Work or Proof of Stake — it's{' '}
+            <span className="font-bold">Proof of Impact</span>.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, index) => {
-            const Icon = feature.icon
-            return (
-              <Card key={index} className="gaia-card p-6 hover:shadow-lg transition-shadow">
-                <div className="flex flex-col items-start gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
-                    <Icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
-                    <p className="text-foreground/70 text-sm leading-relaxed">{feature.description}</p>
-                  </div>
-                </div>
-              </Card>
-            )
-          })}
+        <div className="bg-gaia-black text-gaia-yellow border-2 border-gaia-black p-12 mb-12 text-center">
+          <p className="text-3xl md:text-4xl font-serif font-bold leading-tight">
+            The chain literally advances when the real world improves
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+          {verificationMethods.map((method, index) => (
+            <div
+              key={index}
+              className="bg-gaia-white border-2 border-gaia-black p-8 text-center hover:translate-y-[-4px] transition-transform"
+            >
+              <method.icon className="w-12 h-12 mx-auto mb-4" />
+              <p className="font-semibold">{method.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-gaia-white border-2 border-gaia-black p-8">
+            <h3 className="text-2xl font-serif font-bold mb-4">Evidence Submission</h3>
+            <p className="text-lg leading-relaxed">
+              When Node Operators complete a task, they submit comprehensive evidence including GPS coordinates,
+              timestamped drone footage, and IoT sensor data — all recorded immutably on-chain.
+            </p>
+          </div>
+          <div className="bg-gaia-white border-2 border-gaia-black p-8">
+            <h3 className="text-2xl font-serif font-bold mb-4">Oracle Verification</h3>
+            <p className="text-lg leading-relaxed">
+              Smart contracts and oracles automatically verify submitted evidence against predefined criteria,
+              ensuring only genuine impact advances the blockchain state.
+            </p>
+          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }
