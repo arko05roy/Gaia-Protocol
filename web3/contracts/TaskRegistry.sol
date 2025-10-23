@@ -334,7 +334,17 @@ contract TaskRegistry is Ownable, Pausable, ReentrancyGuard {
         TaskStatus oldStatus = _tasks[taskId].status;
         _tasks[taskId].status = newStatus;
         
-        // Update status index
+        // Remove from old status index
+        uint256[] storage oldStatusTasks = _tasksByStatus[oldStatus];
+        for (uint256 i = 0; i < oldStatusTasks.length; i++) {
+            if (oldStatusTasks[i] == taskId) {
+                oldStatusTasks[i] = oldStatusTasks[oldStatusTasks.length - 1];
+                oldStatusTasks.pop();
+                break;
+            }
+        }
+        
+        // Add to new status index
         _tasksByStatus[newStatus].push(taskId);
         
         emit TaskStatusChanged(taskId, oldStatus, newStatus);
@@ -345,15 +355,59 @@ contract TaskRegistry is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Get complete task details
      * @param taskId ID of the task
-     * @return Task struct with all fields
+     * @return id Task ID
+     * @return proposer Task proposer address
+     * @return description Task description
+     * @return estimatedCost Estimated cost in cUSD
+     * @return expectedCO2 Expected CO2 offset
+     * @return location Task location
+     * @return deadline Task deadline
+     * @return proofRequirements Proof requirements
+     * @return ipfsHash IPFS hash
+     * @return status Task status
+     * @return createdAt Creation timestamp
+     * @return assignedOperator Assigned operator address
+     * @return actualCO2 Actual CO2 offset
+     * @return proofHash Proof IPFS hash
      */
     function getTask(uint256 taskId) 
         external 
         view 
         taskExists(taskId) 
-        returns (Task memory) 
+        returns (
+            uint256 id,
+            address proposer,
+            string memory description,
+            uint256 estimatedCost,
+            uint256 expectedCO2,
+            string memory location,
+            uint256 deadline,
+            string memory proofRequirements,
+            string memory ipfsHash,
+            TaskStatus status,
+            uint256 createdAt,
+            address assignedOperator,
+            uint256 actualCO2,
+            string memory proofHash
+        )
     {
-        return _tasks[taskId];
+        Task storage task = _tasks[taskId];
+        return (
+            task.id,
+            task.proposer,
+            task.description,
+            task.estimatedCost,
+            task.expectedCO2,
+            task.location,
+            task.deadline,
+            task.proofRequirements,
+            task.ipfsHash,
+            task.status,
+            task.createdAt,
+            task.assignedOperator,
+            task.actualCO2,
+            task.proofHash
+        );
     }
     
     /**

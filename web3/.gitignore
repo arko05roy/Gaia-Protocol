@@ -44,5 +44,4 @@ next-env.d.ts
 hardhat.config.js
 artifacts
 build-info
-contracts
 

@@ -215,14 +215,14 @@ contract PredictionMarket is Ownable, Pausable, ReentrancyGuard {
         
         if (market.outcome) {
             // YES won
-            require(position.yesShares > 0, "No winning shares");
+            require(position.yesShares > 0, "No winnings to claim");
             
             uint256 totalPool = market.yesPool + market.noPool;
             winnings = (position.yesShares * totalPool) / market.yesPool;
             position.yesShares = 0;
         } else {
             // NO won
-            require(position.noShares > 0, "No winning shares");
+            require(position.noShares > 0, "No winnings to claim");
             
             uint256 totalPool = market.yesPool + market.noPool;
             winnings = (position.noShares * totalPool) / market.noPool;

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -33,7 +34,7 @@ interface IFundingPool {
  * @notice Mints ERC1155 carbon credit tokens for verified tasks
  * @dev Each task creates a unique token ID representing its carbon credits
  */
-contract CarbonCreditMinter is ERC1155, Ownable, Pausable, ReentrancyGuard {
+contract CarbonCreditMinter is ERC1155, ERC1155Holder, Ownable, Pausable, ReentrancyGuard {
     
     // ============ Structs ============
     
@@ -350,7 +351,7 @@ contract CarbonCreditMinter is ERC1155, Ownable, Pausable, ReentrancyGuard {
      * @param tokenIds Array of token IDs to check
      * @return balances Array of balances
      */
-    function balanceOfBatch(address account, uint256[] memory tokenIds) 
+    function balanceOfBatchForAccount(address account, uint256[] memory tokenIds) 
         public 
         view 
         returns (uint256[] memory balances) 
@@ -381,6 +382,18 @@ contract CarbonCreditMinter is ERC1155, Ownable, Pausable, ReentrancyGuard {
     function uri(uint256 tokenId) public view override returns (string memory) {
         require(creditMetadata[tokenId].exists, "Token does not exist");
         return string(abi.encodePacked(_baseTokenURI, _toString(tokenId), ".json"));
+    }
+    
+    /**
+     * @notice Support for ERC1155 and ERC165 interfaces
+     */
+    function supportsInterface(bytes4 interfaceId) 
+        public 
+        view 
+        override(ERC1155, ERC1155Holder) 
+        returns (bool) 
+    {
+        return super.supportsInterface(interfaceId);
     }
     
     /**
