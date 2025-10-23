@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 
 const STYLE_ID = "bento3-animations";
 
@@ -306,6 +307,11 @@ function FlowCard({ flow, palette, index, visible }: any) {
         <div className={`mt-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border ${palette.cardBorder} ${palette.card} sm:h-14 sm:w-14 lg:ml-auto lg:mt-0 lg:h-16 lg:w-16`}>
           <AnimatedIcon variant={flow.variant} />
         </div>
+        {flow.id === "05" && (
+          <div className="pointer-events-none absolute -right-6 top-1/2 hidden -translate-y-1/2 md:block">
+            <Image src="/hand (1).png" alt="Hand" width={120} height={120} className="opacity-90" />
+          </div>
+        )}
       </div>
       <div className="mt-8 flex flex-col gap-3 text-[0.65rem] uppercase tracking-[0.25em] opacity-70 sm:text-xs sm:tracking-[0.35em] sm:flex-row sm:items-center sm:justify-between">
         <span className="text-center sm:text-left">{flow.statLabel}</span>
