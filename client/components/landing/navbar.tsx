@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Menu, X, Leaf } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -54,7 +56,9 @@ export default function Header() {
           </nav>
 
           <div className="hidden md:block">
-            <button className="px-6 py-2 bg-gaia-black text-gaia-yellow border-2 border-gaia-black hover:bg-transparent hover:text-gaia-black transition-all">
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="px-6 py-2 bg-gaia-black text-gaia-yellow border-2 border-gaia-black hover:bg-transparent hover:text-gaia-black transition-all">
               Launch App
             </button>
           </div>
@@ -84,7 +88,12 @@ export default function Header() {
             <button onClick={() => scrollToSection('ecosystem')} className="text-left hover:opacity-60 transition-opacity">
               Ecosystem
             </button>
-            <button className="px-6 py-2 bg-gaia-black text-gaia-yellow border-2 border-gaia-black hover:bg-transparent hover:text-gaia-black transition-all text-left">
+            <button 
+              onClick={() => {
+                router.push('/dashboard');
+                setIsMobileMenuOpen(false);
+              }}
+              className="px-6 py-2 bg-gaia-black text-gaia-yellow border-2 border-gaia-black hover:bg-transparent hover:text-gaia-black transition-all text-left">
               Launch App
             </button>
           </nav>

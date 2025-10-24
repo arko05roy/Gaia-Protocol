@@ -255,22 +255,18 @@ export default function GovernancePage() {
   const isLoading = loadingTotal || loadingBalances
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-auto">
+        <div className="p-6 space-y-6">
+          {/* Header */}
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Governance</h1>
-              <p className="text-slate-400">Participate in protocol decisions and vote on proposals</p>
+              <h1 className="text-3xl font-bold text-foreground">Governance</h1>
+              <p className="text-muted-foreground">Participate in protocol decisions and vote on proposals</p>
             </div>
             <Button
               onClick={() => setShowCreateModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
             >
               <Plus size={20} />
               Create Proposal
@@ -279,104 +275,100 @@ export default function GovernancePage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-slate-800 border-slate-700 p-6">
+            <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm mb-1">Total Proposals</p>
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-muted-foreground text-sm mb-1">Total Proposals</p>
+                  <p className="text-3xl font-bold text-primary">
                     {isLoading ? <Loader className="animate-spin" size={24} /> : totalProposals?.toString() || "0"}
                   </p>
                 </div>
-                <FileText className="text-emerald-500" size={32} />
+                <FileText className="text-primary" size={32} />
               </div>
             </Card>
 
-            <Card className="bg-slate-800 border-slate-700 p-6">
+            <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm mb-1">Your Voting Power</p>
-                  <p className="text-3xl font-bold text-white">{votingPower.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500 mt-1">Carbon Credits</p>
+                  <p className="text-muted-foreground text-sm mb-1">Your Voting Power</p>
+                  <p className="text-3xl font-bold text-primary">{votingPower.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Carbon Credits</p>
                 </div>
-                <Users className="text-blue-500" size={32} />
+                <Users className="text-primary" size={32} />
               </div>
             </Card>
 
-            <Card className="bg-slate-800 border-slate-700 p-6">
+            <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm mb-1">Active Proposals</p>
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-muted-foreground text-sm mb-1">Active Proposals</p>
+                  <p className="text-3xl font-bold text-primary">
                     {proposals.filter((p) => p.state === ProposalState.Active).length}
                   </p>
                 </div>
-                <TrendingUp className="text-orange-500" size={32} />
+                <TrendingUp className="text-primary" size={32} />
               </div>
             </Card>
           </div>
-        </motion.div>
 
-        {/* Error/Success Messages */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-4 p-4 bg-red-900/20 border border-red-500/50 rounded-lg flex items-center gap-3"
-            >
-              <AlertCircle className="text-red-500" size={20} />
-              <p className="text-red-200">{error}</p>
-            </motion.div>
-          )}
+          {/* Error/Success Messages */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3"
+              >
+                <AlertCircle className="text-red-500" size={20} />
+                <p className="text-red-700">{error}</p>
+              </motion.div>
+            )}
 
-          {successMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-4 p-4 bg-green-900/20 border border-green-500/50 rounded-lg flex items-center gap-3"
-            >
-              <CheckCircle className="text-green-500" size={20} />
-              <p className="text-green-200">{successMessage}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3"
+              >
+                <CheckCircle className="text-green-500" size={20} />
+                <p className="text-green-700">{successMessage}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Proposals List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <h2 className="text-2xl font-bold text-white mb-4">Proposals</h2>
+          {/* Proposals List */}
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Proposals</h2>
 
-          {proposals.length === 0 ? (
-            <Card className="bg-slate-800 border-slate-700 p-12 text-center">
-              <FileText className="mx-auto text-slate-500 mb-4" size={48} />
-              <p className="text-slate-400">No proposals yet. Create one to get started!</p>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {proposals.map((proposal) => (
-                <ProposalCard
-                  key={proposal.id.toString()}
-                  proposal={proposal}
-                  onVote={() => {
-                    setSelectedProposalId(proposal.id)
-                    setShowVoteModal(true)
-                  }}
-                  onExecute={() => handleExecute(proposal.id)}
-                  onCancel={() => handleCancel(proposal.id)}
-                  votingPower={votingPower}
-                  isVoting={isVoting}
-                  isExecuting={isExecuting}
-                  isCancelling={isCancelling}
-                />
-              ))}
-            </div>
-          )}
-        </motion.div>
+            {proposals.length === 0 ? (
+              <Card className="gaia-card p-12 text-center">
+                <FileText className="mx-auto text-muted-foreground mb-4" size={48} />
+                <p className="text-muted-foreground">No proposals yet. Create one to get started!</p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {proposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.id.toString()}
+                    proposal={proposal}
+                    onVote={() => {
+                      setSelectedProposalId(proposal.id)
+                      setShowVoteModal(true)
+                    }}
+                    onExecute={() => handleExecute(proposal.id)}
+                    onCancel={() => handleCancel(proposal.id)}
+                    votingPower={votingPower}
+                    isVoting={isVoting}
+                    isExecuting={isExecuting}
+                    isCancelling={isCancelling}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Create Proposal Modal */}
@@ -457,98 +449,92 @@ function ProposalCard({
   const canCancel = isActive && !proposal.cancelled
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-    >
-      <Card className="bg-slate-800 border-slate-700 p-6 hover:border-slate-600 transition-colors">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-white">{proposal.description}</h3>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${stateColor}`}>{stateLabel}</span>
-            </div>
-            <p className="text-sm text-slate-400">
-              Proposed by: <span className="text-slate-300 font-mono">{proposal.proposer.slice(0, 10)}...</span>
-            </p>
+    <Card className="gaia-card">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-lg font-semibold text-foreground">{proposal.description}</h3>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${stateColor}`}>{stateLabel}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Proposed by: <span className="text-foreground font-mono">{proposal.proposer.slice(0, 10)}...</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Voting Results */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm text-muted-foreground">Voting Results</p>
+          <p className="text-sm text-muted-foreground">{Number(totalVotes)} votes</p>
+        </div>
+
+        <div className="flex gap-2 mb-2">
+          <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-green-500 h-full transition-all duration-300"
+              style={{ width: `${forPercentage}%` }}
+            />
+          </div>
+          <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-red-500 h-full transition-all duration-300"
+              style={{ width: `${againstPercentage}%` }}
+            />
           </div>
         </div>
 
-        {/* Voting Results */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-slate-400">Voting Results</p>
-            <p className="text-sm text-slate-400">{Number(totalVotes)} votes</p>
-          </div>
-
-          <div className="flex gap-2 mb-2">
-            <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-green-500 h-full transition-all duration-300"
-                style={{ width: `${forPercentage}%` }}
-              />
-            </div>
-            <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-red-500 h-full transition-all duration-300"
-                style={{ width: `${againstPercentage}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-between text-xs text-slate-400">
-            <span className="text-green-400">For: {Number(formatUnits(proposal.forVotes, 18)).toFixed(2)}</span>
-            <span className="text-red-400">Against: {Number(formatUnits(proposal.againstVotes, 18)).toFixed(2)}</span>
-          </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span className="text-green-600">For: {Number(formatUnits(proposal.forVotes, 18)).toFixed(2)}</span>
+          <span className="text-red-600">Against: {Number(formatUnits(proposal.againstVotes, 18)).toFixed(2)}</span>
         </div>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          {canVote && (
-            <Button
-              onClick={onVote}
-              disabled={isVoting}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-2"
-            >
-              {isVoting ? <Loader className="animate-spin" size={16} /> : <ThumbsUp size={16} />}
-              {isVoting ? "Voting..." : "Vote"}
-            </Button>
-          )}
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        {canVote && (
+          <Button
+            onClick={onVote}
+            disabled={isVoting}
+            className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+          >
+            {isVoting ? <Loader className="animate-spin" size={16} /> : <ThumbsUp size={16} />}
+            {isVoting ? "Voting..." : "Vote"}
+          </Button>
+        )}
 
-          {canExecute && (
-            <Button
-              onClick={onExecute}
-              disabled={isExecuting}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            >
-              {isExecuting ? <Loader className="animate-spin" size={16} /> : <Zap size={16} />}
-              {isExecuting ? "Executing..." : "Execute"}
-            </Button>
-          )}
+        {canExecute && (
+          <Button
+            onClick={onExecute}
+            disabled={isExecuting}
+            className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+          >
+            {isExecuting ? <Loader className="animate-spin" size={16} /> : <Zap size={16} />}
+            {isExecuting ? "Executing..." : "Execute"}
+          </Button>
+        )}
 
-          {canCancel && (
-            <Button
-              onClick={onCancel}
-              disabled={isCancelling}
-              variant="outline"
-              className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700 gap-2"
-            >
-              {isCancelling ? <Loader className="animate-spin" size={16} /> : <X size={16} />}
-              {isCancelling ? "Cancelling..." : "Cancel"}
-            </Button>
-          )}
+        {canCancel && (
+          <Button
+            onClick={onCancel}
+            disabled={isCancelling}
+            variant="outline"
+            className="flex-1 border-border text-foreground hover:bg-muted gap-2"
+          >
+            {isCancelling ? <Loader className="animate-spin" size={16} /> : <X size={16} />}
+            {isCancelling ? "Cancelling..." : "Cancel"}
+          </Button>
+        )}
 
-          {!canVote && !canExecute && !canCancel && (
-            <div className="w-full text-center py-2 text-slate-500 text-sm">
-              {proposal.state === ProposalState.Executed && "Proposal executed"}
-              {proposal.state === ProposalState.Defeated && "Proposal defeated"}
-              {proposal.state === ProposalState.Cancelled && "Proposal cancelled"}
-            </div>
-          )}
-        </div>
-      </Card>
-    </motion.div>
+        {!canVote && !canExecute && !canCancel && (
+          <div className="w-full text-center py-2 text-muted-foreground text-sm">
+            {proposal.state === ProposalState.Executed && "Proposal executed"}
+            {proposal.state === ProposalState.Defeated && "Proposal defeated"}
+            {proposal.state === ProposalState.Cancelled && "Proposal cancelled"}
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -594,14 +580,14 @@ function CreateProposalModal({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full"
+        className="bg-card border border-border rounded-lg p-6 max-w-md w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Create Proposal</h2>
+          <h2 className="text-xl font-bold text-foreground">Create Proposal</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-300 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={20} />
           </button>
@@ -609,33 +595,33 @@ function CreateProposalModal({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe your proposal..."
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+              className="w-full bg-background border border-border rounded px-3 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
               rows={3}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Target Contract Address</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Target Contract Address</label>
             <Input
               value={targetContract}
               onChange={(e) => setTargetContract(e.target.value)}
               placeholder="0x..."
-              className="bg-slate-700 border-slate-600 text-white placeholder-slate-500 focus:border-emerald-500 focus:ring-emerald-500"
+              className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary focus:ring-primary"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Call Data (hex)</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Call Data (hex)</label>
             <textarea
               value={callData}
               onChange={(e) => setCallData(e.target.value)}
               placeholder="0x..."
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none font-mono text-xs"
+              className="w-full bg-background border border-border rounded px-3 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none font-mono text-xs"
               rows={3}
             />
           </div>
@@ -644,14 +630,14 @@ function CreateProposalModal({
             <Button
               onClick={onClose}
               variant="outline"
-              className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
+              className="flex-1 border-border text-foreground hover:bg-muted"
             >
               Cancel
             </Button>
             <Button
               onClick={onSubmit}
               disabled={isLoading}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
               {isLoading ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
               {isLoading ? getButtonText() : "Create"}
@@ -695,22 +681,22 @@ function VoteModal({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full"
+        className="bg-card border border-border rounded-lg p-6 max-w-md w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Cast Your Vote</h2>
+          <h2 className="text-xl font-bold text-foreground">Cast Your Vote</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-300 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
         <div className="mb-6">
-          <p className="text-slate-400 text-sm mb-2">Your Voting Power</p>
-          <p className="text-2xl font-bold text-emerald-400">{votingPower.toFixed(2)} Credits</p>
+          <p className="text-muted-foreground text-sm mb-2">Your Voting Power</p>
+          <p className="text-2xl font-bold text-primary">{votingPower.toFixed(2)} Credits</p>
         </div>
 
         <div className="space-y-3 mb-6">
@@ -718,15 +704,15 @@ function VoteModal({
             onClick={() => setVoteSupport(true)}
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               voteSupport === true
-                ? "border-green-500 bg-green-500/10"
-                : "border-slate-600 bg-slate-700/50 hover:border-slate-500"
+                ? "border-green-500 bg-green-50"
+                : "border-border bg-card hover:border-primary"
             }`}
           >
             <div className="flex items-center gap-3">
-              <ThumbsUp className={voteSupport === true ? "text-green-500" : "text-slate-400"} size={20} />
+              <ThumbsUp className={voteSupport === true ? "text-green-500" : "text-muted-foreground"} size={20} />
               <div className="text-left">
-                <p className={`font-semibold ${voteSupport === true ? "text-green-400" : "text-white"}`}>Vote For</p>
-                <p className="text-xs text-slate-400">Support this proposal</p>
+                <p className={`font-semibold ${voteSupport === true ? "text-green-600" : "text-foreground"}`}>Vote For</p>
+                <p className="text-xs text-muted-foreground">Support this proposal</p>
               </div>
             </div>
           </button>
@@ -735,17 +721,17 @@ function VoteModal({
             onClick={() => setVoteSupport(false)}
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               voteSupport === false
-                ? "border-red-500 bg-red-500/10"
-                : "border-slate-600 bg-slate-700/50 hover:border-slate-500"
+                ? "border-red-500 bg-red-50"
+                : "border-border bg-card hover:border-primary"
             }`}
           >
             <div className="flex items-center gap-3">
-              <ThumbsDown className={voteSupport === false ? "text-red-500" : "text-slate-400"} size={20} />
+              <ThumbsDown className={voteSupport === false ? "text-red-500" : "text-muted-foreground"} size={20} />
               <div className="text-left">
-                <p className={`font-semibold ${voteSupport === false ? "text-red-400" : "text-white"}`}>
+                <p className={`font-semibold ${voteSupport === false ? "text-red-600" : "text-foreground"}`}>
                   Vote Against
                 </p>
-                <p className="text-xs text-slate-400">Oppose this proposal</p>
+                <p className="text-xs text-muted-foreground">Oppose this proposal</p>
               </div>
             </div>
           </button>
@@ -755,19 +741,19 @@ function VoteModal({
           <Button
             onClick={onClose}
             variant="outline"
-            className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
+            className="flex-1 border-border text-foreground hover:bg-muted"
           >
             Cancel
           </Button>
           <Button
             onClick={voteSupport ? onVoteFor : onVoteAgainst}
             disabled={isLoading || voteSupport === null}
-            className={`flex-1 text-white gap-2 ${
+            className={`flex-1 text-primary-foreground gap-2 ${
               voteSupport === true
                 ? "bg-green-600 hover:bg-green-700"
                 : voteSupport === false
                   ? "bg-red-600 hover:bg-red-700"
-                  : "bg-slate-600 cursor-not-allowed"
+                  : "bg-muted cursor-not-allowed"
             }`}
           >
             {isLoading ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
