@@ -138,9 +138,9 @@ export default function DataMarketplacePage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Database className="h-8 w-8 text-primary" />
-            Data Marketplace
+            Carbon Credit Marketplace
           </h1>
-          <p className="text-foreground/60 mt-2">Browse and purchase environmental datasets</p>
+          <p className="text-foreground/60 mt-2">Browse and purchase carbon credits</p>
         </div>
 
         {/* Search and Filter */}
