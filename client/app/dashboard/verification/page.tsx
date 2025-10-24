@@ -2,10 +2,25 @@
 
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Download, CheckCircle2, ChevronDown, ChevronUp, ImageIcon, FileText, MapPin, Cloud, Eye, Loader, AlertCircle } from "lucide-react"
+import { Download, CheckCircle2, ChevronDown, ChevronUp, ImageIcon, FileText, MapPin, Cloud, Eye, Loader, AlertCircle, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useGetTotalTasks, useGetTasks, useSubmitValidatorVote, TaskStatus } from "@/hooks"
+import {
+  useGetTotalTasks,
+  useGetTasks,
+  useSubmitValidatorVote,
+  useIsValidator,
+  useGetValidatorReputation,
+  useGetVerificationStatus,
+  useGetTaskValidators,
+  useGetValidatorVote,
+  useGetRequiredValidators,
+  useGetConsensusThreshold,
+  useGetVerificationPeriod,
+  TaskStatus,
+  type Vote,
+} from "@/hooks"
 import { useAccount } from "wagmi"
+import { formatUnits } from "viem"
 import DashboardHeader from "@/components/dashboard/header"
 
 interface VerificationStep {
@@ -15,31 +30,31 @@ interface VerificationStep {
 }
 
 const mockVerificationSteps: VerificationStep[] = [
-  { id: "step-1", label: "Mangroves planted (~10,000 confirmed)", completed: false },
-  { id: "step-2", label: "Location correct (Pichavaram region)", completed: false },
-  { id: "step-3", label: "Quality adequate (healthy, proper spacing)", completed: false },
-  { id: "step-4", label: "CO₂ claim reasonable (520 tons over 10 years)", completed: false },
-]
-
-const mockPhotos = [
-  { id: "photo-1", url: "/mangrove-planting-1.jpg" },
-  { id: "photo-2", url: "/mangrove-planting-2.jpg" },
-  { id: "photo-3", url: "/mangrove-planting-3.jpg" },
-]
-
-const mockGPSData = [
-  { timestamp: "2025-10-15 09:30 AM", latitude: "11.9139", longitude: "79.7574", status: "Verified" },
-  { timestamp: "2025-10-15 10:15 AM", latitude: "11.9142", longitude: "79.7580", status: "Verified" },
-  { timestamp: "2025-10-15 11:00 AM", latitude: "11.9145", longitude: "79.7585", status: "Verified" },
-  { timestamp: "2025-10-15 02:30 PM", latitude: "11.9148", longitude: "79.7590", status: "Verified" },
+  { id: "step-1", label: "Proof documentation reviewed", completed: false },
+  { id: "step-2", label: "Location verified", completed: false },
+  { id: "step-3", label: "Quality assessment complete", completed: false },
+  { id: "step-4", label: "CO₂ calculations validated", completed: false },
 ]
 
 export default function VerificationPage() {
   const { address } = useAccount()
+  
+  // Task data
   const { totalTasks } = useGetTotalTasks()
   const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
   const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
-  const { submitValidatorVote, isPending: isSubmitting, isSuccess: voteSuccess } = useSubmitValidatorVote()
+  
+  // Validator checks
+  const { isValidator, isLoading: validatorCheckLoading } = useIsValidator(address)
+  const { reputationScore } = useGetValidatorReputation(address)
+  
+  // Verification parameters
+  const { requiredValidators } = useGetRequiredValidators()
+  const { threshold } = useGetConsensusThreshold()
+  const { period: verificationPeriod } = useGetVerificationPeriod()
+  
+  // Transaction hooks
+  const { submitValidatorVote, hash, isPending: isSubmitting, isConfirming, isSuccess: voteSuccess } = useSubmitValidatorVote()
   
   const [selectedTask, setSelectedTask] = useState<bigint | null>(null)
   const [expandedTask, setExpandedTask] = useState<bigint | null>(null)
@@ -53,9 +68,14 @@ export default function VerificationPage() {
   const [successMessage, setSuccessMessage] = useState("")
   const [successSubtitle, setSuccessSubtitle] = useState("")
   const [error, setError] = useState<string | null>(null)
+  
+  // Fetch verification status and validators for selected task
+  const { status: verificationStatus, isLoading: statusLoading } = useGetVerificationStatus(selectedTask || undefined)
+  const { validators: taskValidators, isLoading: validatorsLoading } = useGetTaskValidators(selectedTask || undefined)
+  const { vote: userVote } = useGetValidatorVote(selectedTask || undefined, address)
 
-  // Filter tasks that need verification (not verified or rejected)
-  const pendingTasks = (tasks || []).filter((t) => t.status !== TaskStatus.Verified && t.status !== TaskStatus.Rejected)
+  // Filter tasks that need verification (only UnderReview status - proof submitted by operator)
+  const pendingTasks = (tasks || []).filter((t) => t.status === TaskStatus.UnderReview)
 
   const handleStepToggle = (stepId: string) => {
     setVerificationSteps(
@@ -65,14 +85,32 @@ export default function VerificationPage() {
 
   const handleSubmit = async () => {
     if (!voteChoice || !selectedTask || !address) {
-      setError("Invalid submission")
+      setError("Please select approve/reject and connect wallet")
+      return
+    }
+
+    // Only block if validator check explicitly returns false
+    if (isValidator === false) {
+      setError("You are not registered as a validator")
+      return
+    }
+
+    if (userVote?.hasVoted) {
+      setError("You have already voted on this task")
       return
     }
 
     try {
       setError(null)
       const approved = voteChoice === "approve"
-      submitValidatorVote(selectedTask, approved, justification, BigInt(confidence))
+      const confidenceBigInt = BigInt(Math.max(0, Math.min(100, confidence)))
+      // Diagnostics to confirm hook invocation
+      console.log("Submitting validator vote", {
+        taskId: selectedTask?.toString(),
+        approved,
+        confidence: confidenceBigInt.toString(),
+      })
+      submitValidatorVote(selectedTask, approved, justification, confidenceBigInt)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit vote")
     }
@@ -80,7 +118,7 @@ export default function VerificationPage() {
 
   // Auto-close modal on success
   React.useEffect(() => {
-    if (voteSuccess) {
+    if (voteSuccess && selectedTask) {
       setSuccessMessage("Verification Submitted Successfully")
       setSuccessSubtitle(
         `Task #${selectedTask} ${voteChoice === "approve" ? "approved" : "rejected"} with ${confidence}% confidence`,
@@ -97,7 +135,7 @@ export default function VerificationPage() {
         setVoteChoice(null)
       }, 3000)
     }
-  }, [voteSuccess, selectedTask, voteChoice, confidence])
+  }, [voteSuccess])
 
   const currentTask = tasks?.find((t) => t.id === selectedTask)
 
@@ -108,20 +146,62 @@ export default function VerificationPage() {
         <div className="p-4 md:p-6 space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Verification Dashboard</h1>
-            <p className="text-foreground/60 mt-1">Review and verify environmental projects</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Verification Dashboard</h1>
+                <p className="text-foreground/60 mt-1">Review and verify environmental projects</p>
+              </div>
+              {validatorCheckLoading ? (
+                <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-lg border border-primary/20">
+                  <Loader className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-sm text-foreground/60">Checking status...</span>
+                </div>
+              ) : !isValidator ? (
+                <div className="px-4 py-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="text-sm text-yellow-800">Not a validator</p>
+                </div>
+              ) : (
+                <div className="space-y-2 text-right">
+                  <div className="flex items-center gap-2 justify-end px-4 py-2 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">Validator</span>
+                  </div>
+                  {reputationScore !== undefined && (
+                    <p className="text-xs text-foreground/60">Reputation: {formatUnits(reputationScore, 0)}</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Validator Check */}
+          {!validatorCheckLoading && !isValidator && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-3"
+            >
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+              <p className="text-sm text-yellow-800">
+                You are not registered as a validator. Only approved validators can submit verification votes.
+              </p>
+            </motion.div>
+          )}
 
           {/* Pending Reviews Section */}
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-foreground">Pending Reviews</h2>
 
-            {tasksLoading ? (
+            {tasksLoading || validatorCheckLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
                   <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
                   <p className="text-foreground/60">Loading tasks for verification...</p>
                 </div>
+              </div>
+            ) : !isValidator ? (
+              <div className="text-center py-12">
+                <p className="text-foreground/60">Only validators can access this section</p>
               </div>
             ) : pendingTasks.length === 0 ? (
               <div className="text-center py-12">
@@ -213,10 +293,21 @@ export default function VerificationPage() {
               <div className="p-6 space-y-6">
                 {/* Section 1: Task Information */}
                 <div className="border-b border-border pb-6">
-                  <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Task #{Number(currentTask.id)}
-                  </h2>
-                  <p className="text-foreground/60 mb-4">{currentTask.description}</p>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-foreground mb-2">
+                        Task #{Number(currentTask.id)}
+                      </h2>
+                      <p className="text-foreground/60">{currentTask.description}</p>
+                    </div>
+                    {userVote?.hasVoted && (
+                      <div className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        You voted
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <p className="text-sm text-foreground/60">Location</p>
@@ -227,6 +318,38 @@ export default function VerificationPage() {
                       <p className="font-semibold text-foreground">{currentTask.proofRequirements}</p>
                     </div>
                   </div>
+
+                  {/* Verification Status */}
+                  {statusLoading ? (
+                    <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                      <Loader className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-foreground/60">Loading verification status...</span>
+                    </div>
+                  ) : verificationStatus && (
+                    <div className="p-4 bg-foreground/5 rounded-lg border border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">Verification Status</span>
+                        <span className="text-xs text-foreground/60">
+                          {verificationStatus.approveVotes || 0} approve / {verificationStatus.rejectVotes || 0} reject
+                        </span>
+                      </div>
+                      <div className="w-full bg-foreground/10 rounded-full h-2">
+                        <div
+                          className="bg-green-500 h-2 rounded-full transition-all"
+                          style={{
+                            width: `${
+                              ((verificationStatus.approveVotes || 0) /
+                                (Number(requiredValidators) || 3)) *
+                              100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-foreground/60">
+                        {requiredValidators ? `${Number(requiredValidators)} validators required` : "Loading..."}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Download IPFS Bundle */}
                   <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
@@ -242,134 +365,116 @@ export default function VerificationPage() {
                   </div>
                 </div>
 
-                {/* Section 2: Evidence Viewer */}
+                {/* Section 2: Operator Proof */}
                 <div className="border-b border-border pb-6 space-y-4">
                   <h3 className="font-semibold text-foreground text-lg flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5" />
-                    Evidence Viewer
+                    <FileText className="h-5 w-5" />
+                    Operator Proof Submission
                   </h3>
 
-                  {/* Photo Gallery */}
-                  <div>
-                    <p className="text-sm font-medium text-foreground/60 mb-3">GPS-Tagged Images</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      {mockPhotos.map((photo: { id: string; url: string }) => (
-                        <motion.img
-                          key={photo.id}
-                          src={photo.url}
-                          alt="Verification photo"
-                          className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:border-primary transition-colors"
-                          whileHover={{ scale: 1.05 }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Drone Footage Preview */}
-                  <div>
-                    <p className="text-sm font-medium text-foreground/60 mb-3">Drone Footage Preview</p>
-                    <div className="w-full h-48 bg-foreground/5 rounded-lg border border-border flex items-center justify-center">
-                      <div className="text-center">
-                        <Eye className="h-8 w-8 text-foreground/40 mx-auto mb-2" />
-                        <p className="text-sm text-foreground/60">Drone footage video player</p>
-                        <p className="text-xs text-foreground/40 mt-1">Duration: 5:32</p>
+                  {/* Operator Information */}
+                  <div className="p-4 bg-foreground/5 rounded-lg border border-border">
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs text-foreground/60">Operator Address</p>
+                        <p className="text-sm font-mono text-foreground break-all">{currentTask.assignedOperator}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-foreground/60">Actual CO₂ Offset (tons)</p>
+                        <p className="text-lg font-bold text-primary">{formatUnits(currentTask.actualCO2, 0)}</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* GPS Coordinates Table */}
-                  <div>
-                    <p className="text-sm font-medium text-foreground/60 mb-3">GPS Coordinates & Timestamps</p>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left py-2 px-3 text-foreground/60 font-medium">Timestamp</th>
-                            <th className="text-left py-2 px-3 text-foreground/60 font-medium">Latitude</th>
-                            <th className="text-left py-2 px-3 text-foreground/60 font-medium">Longitude</th>
-                            <th className="text-left py-2 px-3 text-foreground/60 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {mockGPSData.map((row: { timestamp: string; latitude: string; longitude: string; status: string }, idx: number) => (
-                            <tr key={idx} className="border-b border-border/50 hover:bg-foreground/5">
-                              <td className="py-2 px-3 text-foreground">{row.timestamp}</td>
-                              <td className="py-2 px-3 text-foreground">{row.latitude}</td>
-                              <td className="py-2 px-3 text-foreground">{row.longitude}</td>
-                              <td className="py-2 px-3">
-                                <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  {row.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {/* Proof Hash from IPFS */}
+                  <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+                    <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground">Proof Hash (IPFS)</p>
+                      <p className="text-sm text-foreground/60 break-all font-mono">{currentTask.proofHash || "No proof submitted"}</p>
                     </div>
+                    {currentTask.proofHash && (
+                      <Button variant="outline" size="sm" className="gap-2 bg-transparent flex-shrink-0">
+                        <Download className="h-4 w-4" />
+                        View
+                      </Button>
+                    )}
                   </div>
 
-                  {/* Local Authority Attestation */}
-                  <div className="flex items-center gap-3 p-4 bg-foreground/5 rounded-lg border border-border">
-                    <FileText className="h-5 w-5 text-foreground/60 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">Local Authority Attestation</p>
-                      <p className="text-sm text-foreground/60">Signed verification document</p>
+                  {/* Proof Status */}
+                  {currentTask.proofHash ? (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      <p className="text-sm text-green-800">Proof submitted by operator - Ready for verification</p>
                     </div>
-                    <Button variant="outline" size="sm" className="gap-2 bg-transparent flex-shrink-0">
-                      <Download className="h-4 w-4" />
-                      Download
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                      <p className="text-sm text-yellow-800">No proof submitted yet</p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Section 3: Cross-References */}
+                {/* Section 3: CO₂ Verification */}
                 <div className="border-b border-border pb-6 space-y-4">
-                  <h3 className="font-semibold text-foreground text-lg">Cross-References</h3>
+                  <h3 className="font-semibold text-foreground text-lg">CO₂ Offset Verification</h3>
 
-                  {/* Satellite Imagery Comparison */}
-                  <div>
-                    <p className="text-sm font-medium text-foreground/60 mb-3">Satellite Imagery Comparison</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="h-40 bg-foreground/5 rounded-lg border border-border flex items-center justify-center">
-                        <div className="text-center">
-                          <p className="text-sm text-foreground/60">Before</p>
-                          <p className="text-xs text-foreground/40 mt-1">2024-01-15</p>
-                        </div>
-                      </div>
-                      <div className="h-40 bg-foreground/5 rounded-lg border border-border flex items-center justify-center">
-                        <div className="text-center">
-                          <p className="text-sm text-foreground/60">After</p>
-                          <p className="text-xs text-foreground/40 mt-1">2025-10-15</p>
-                        </div>
-                      </div>
+                  {/* Expected vs Actual CO2 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-foreground/5 rounded-lg border border-border">
+                      <p className="text-xs text-foreground/60 mb-1">Expected CO₂ (tons)</p>
+                      <p className="text-2xl font-bold text-foreground">{formatUnits(currentTask.expectedCO2, 0)}</p>
+                    </div>
+                    <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                      <p className="text-xs text-foreground/60 mb-1">Actual CO₂ Submitted (tons)</p>
+                      <p className="text-2xl font-bold text-primary">{formatUnits(currentTask.actualCO2, 0)}</p>
                     </div>
                   </div>
 
-                  {/* Weather Summary */}
+                  {/* Variance Analysis */}
+                  {currentTask.actualCO2 > 0n && (
+                    <div className="p-4 bg-foreground/5 rounded-lg border border-border">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-foreground">Variance Analysis</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-foreground/60">Difference:</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {Number(currentTask.actualCO2) > Number(currentTask.expectedCO2)
+                              ? `+${formatUnits(currentTask.actualCO2 - currentTask.expectedCO2, 0)} tons`
+                              : `${formatUnits(currentTask.actualCO2 - currentTask.expectedCO2, 0)} tons`}
+                          </span>
+                        </div>
+                        <div className="w-full bg-foreground/10 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              Number(currentTask.actualCO2) >= Number(currentTask.expectedCO2)
+                                ? "bg-green-500"
+                                : "bg-yellow-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                (Number(currentTask.actualCO2) / Number(currentTask.expectedCO2)) * 100,
+                                100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Task Details */}
                   <div className="p-4 bg-foreground/5 rounded-lg border border-border">
-                    <div className="flex items-start gap-3">
-                      <Cloud className="h-5 w-5 text-foreground/60 flex-shrink-0 mt-1" />
+                    <div className="space-y-3">
                       <div>
-                        <p className="font-medium text-foreground">Weather Summary</p>
-                        <p className="text-sm text-foreground/60 mt-1">
-                          Planting period (Oct 2024 - Mar 2025) had optimal rainfall (1,200mm) and temperature (22-28°C)
-                          for mangrove establishment.
+                        <p className="text-xs text-foreground/60">Task Deadline</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {new Date(Number(currentTask.deadline) * 1000).toLocaleDateString()}
                         </p>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Soil & Geography Note */}
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <div className="flex items-start gap-3">
-                      <MapPin className="h-5 w-5 text-green-600 flex-shrink-0 mt-1" />
                       <div>
-                        <p className="font-medium text-green-900">Soil & Geography Verification</p>
-                        <p className="text-sm text-green-800 mt-1">
-                          Soil and geography match mangrove habitat — verified. Salinity levels (15-30 ppt) and tidal
-                          range (0.5-1.5m) are ideal for species planted.
-                        </p>
+                        <p className="text-xs text-foreground/60">Proof Requirements</p>
+                        <p className="text-sm font-medium text-foreground">{currentTask.proofRequirements}</p>
                       </div>
                     </div>
                   </div>
@@ -402,7 +507,21 @@ export default function VerificationPage() {
                   </div>
                 </div>
 
-                {/* Section 5: Decision Form */}
+                {/* Section 5: Validator Votes */}
+                {taskValidators && taskValidators.length > 0 && (
+                  <div className="border-b border-border pb-6">
+                    <h3 className="font-semibold text-foreground text-lg mb-4">Validator Votes</h3>
+                    <div className="space-y-2">
+                      {taskValidators.map((validator) => (
+                        <div key={validator} className="p-3 bg-foreground/5 rounded-lg border border-border">
+                          <p className="text-xs text-foreground/60 font-mono break-all">{validator}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 6: Decision Form */}
                 <div className="space-y-6">
                   {/* Vote Choice */}
                   <div>
@@ -468,17 +587,41 @@ export default function VerificationPage() {
                     </div>
                   )}
 
+                  {/* Transaction Status */}
+                  {hash && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-800 font-mono break-all">
+                        Transaction: {hash}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4">
                     <Button
                       onClick={handleSubmit}
-                      disabled={!voteChoice || isSubmitting}
+                      disabled={!voteChoice || isSubmitting || isConfirming || userVote?.hasVoted || isValidator === false}
                       className="flex-1 bg-primary hover:bg-primary/90 text-white disabled:opacity-50 disabled:cursor-not-allowed gap-2"
                     >
-                      {isSubmitting ? (
+                      {userVote?.hasVoted ? (
+                        <>
+                          <CheckCircle className="h-4 w-4" />
+                          Already Voted
+                        </>
+                      ) : isConfirming ? (
                         <>
                           <Loader className="h-4 w-4 animate-spin" />
-                          Submitting...
+                          Confirming...
+                        </>
+                      ) : isSubmitting ? (
+                        <>
+                          <Loader className="h-4 w-4 animate-spin" />
+                          Signing...
+                        </>
+                      ) : !isValidator ? (
+                        <>
+                          <AlertCircle className="h-4 w-4" />
+                          Not a Validator
                         </>
                       ) : (
                         <>
@@ -487,7 +630,7 @@ export default function VerificationPage() {
                         </>
                       )}
                     </Button>
-                    <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1" disabled={isSubmitting}>
+                    <Button onClick={() => setSelectedTask(null)} variant="outline" className="flex-1" disabled={isSubmitting || isConfirming}>
                       Close
                     </Button>
                   </div>

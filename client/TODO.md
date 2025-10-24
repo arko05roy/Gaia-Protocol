@@ -49,15 +49,15 @@
   - [ ] Display `useGetDatasetStats()` overview
   - [ ] Add data export functionality
 
-- [ ] **Governance Page** (`/dashboard/governance/page.tsx`)
-  - [ ] Create proposal browsing interface
-  - [ ] Integrate `useGetProposal()` for details
-  - [ ] Add `useCreateProposal()` form
-  - [ ] Implement `useVote()` functionality
-  - [ ] Add `useExecuteProposal()` for passed proposals
-  - [ ] Display `useGetProposalState()` status
-  - [ ] Show `useGetVotingResults()` live
-  - [ ] Add `useCheckQuorum()` indicator
+- [x] **Governance Page** (`/dashboard/governance/page.tsx`)
+  - [x] Create proposal browsing interface
+  - [x] Integrate `useGetProposal()` for details
+  - [x] Add `useCreateProposal()` form
+  - [x] Implement `useVote()` functionality
+  - [x] Add `useExecuteProposal()` for passed proposals
+  - [x] Display `useGetProposalState()` status
+  - [x] Show `useGetVotingResults()` live
+  - [x] Add `useCheckQuorum()` indicator
 
 - [ ] **Model Registry Page** (`/dashboard/models/page.tsx`)
   - [ ] Create AI model marketplace
@@ -77,12 +77,15 @@
   - [ ] Show `useGetCreditMetadata()` for each token
 
 ### Operator Pages
-- [ ] **Operator Dashboard** (`/operator/page.tsx`)
-  - [ ] Create operator-specific dashboard
-  - [ ] Integrate `useGetOperatorTasks()` for assigned tasks
-  - [ ] Add `useSubmitProof()` interface with IPFS upload
-  - [ ] Display `useGetOperatorTotalStake()` overview
-  - [ ] Show available tasks with `useGetTasksByStatus(Funded)`
+- [x] **Operator Dashboard** (`/dashboard/operator/page.tsx`)
+  - [x] Create operator-specific dashboard
+  - [x] Integrate `useGetOperatorTasks()` for assigned tasks
+  - [x] Add `useSubmitProof()` interface with proof hash & CO2
+  - [x] Display `useGetOperatorTotalStake()` overview
+  - [x] Show available tasks with `useGetTasksByStatus(Funded)`
+  - [x] Stake management (Add, Withdraw, Stake for Task)
+  - [x] Register as operator functionality
+  - [x] Real-time stake tracking (Available vs Locked)
 
 ## 🎨 Frontend Pages to Create
 

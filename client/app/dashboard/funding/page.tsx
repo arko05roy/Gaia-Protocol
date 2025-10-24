@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import React from "react"
-import { useGetTotalTasks, useGetTasks, useFundTask, useGetFundingProgress, useApproveToken, useGetAllowance, useCUSDTokenAddress } from "@/hooks"
+import { useGetTotalTasks, useGetTasks, useFundTask, useApproveToken, useGetAllowance, useCUSDTokenAddress, useGetFundingProgress } from "@/hooks"
 import { useAccount } from "wagmi"
 import { motion } from "framer-motion"
 import { Search, Leaf, Loader, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import DashboardHeader from "@/components/dashboard/header"
 import { parseEther, formatUnits } from "viem"
+import TaskCard from "./task-card"
 
 const FUNDING_POOL_ADDRESS = '0x89a87B531E37731A77B1E40B6B8B5bCb58819059' as const
 
@@ -16,7 +17,10 @@ export default function FundingPage() {
   const { address } = useAccount()
   const cusdAddress = useCUSDTokenAddress()
   const { totalTasks } = useGetTotalTasks()
-  const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
+  const taskIds = useMemo(() => 
+    totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : [],
+    [totalTasks]
+  )
   const { tasks, isLoading: tasksLoading } = useGetTasks(taskIds.length > 0 ? taskIds : undefined)
   const { fundTask, isPending: isFunding, isSuccess: fundSuccess } = useFundTask()
   const { approveToken, isPending: isApproving, isSuccess: approvalSuccess } = useApproveToken()
@@ -32,6 +36,7 @@ export default function FundingPage() {
   const [showFundModal, setShowFundModal] = useState(false)
   const [fundError, setFundError] = useState<string | null>(null)
   const [approvalStep, setApprovalStep] = useState(false)
+  const [fundingTaskId, setFundingTaskId] = useState<bigint | null>(null)
 
   const filteredTasks = (tasks || []).filter(
     (task) =>
@@ -41,6 +46,7 @@ export default function FundingPage() {
 
   const handleFundProject = (taskId: bigint) => {
     setSelectedTaskId(taskId)
+    setFundingTaskId(taskId)
     setShowFundModal(true)
     setFundError(null)
   }
@@ -54,6 +60,12 @@ export default function FundingPage() {
     try {
       setFundError(null)
       const amount = parseEther(fundAmount)
+
+      // Prevent funding more than remaining target
+      if (remainingTarget !== undefined && amount > remainingTarget) {
+        setFundError("Amount exceeds remaining funding required")
+        return
+      }
 
       // Check if approval is needed
       if (!allowance || allowance < amount) {
@@ -91,12 +103,22 @@ export default function FundingPage() {
     setFundAmount("1000")
     setFundError(null)
     setApprovalStep(false)
+    setFundingTaskId(null)
     if (fundSuccess) {
       setTimeout(() => window.location.reload(), 1500)
     }
   }
 
   const selectedTask = selectedTaskId && tasks ? tasks.find((t) => t.id === selectedTaskId) : null
+
+  // Progress for selected task (for modal max amount)
+  const { funded: selectedFunded, target: selectedTarget } = useGetFundingProgress(
+    selectedTaskId ?? undefined
+  )
+  const remainingTarget = selectedTarget !== undefined && selectedFunded !== undefined
+    ? (selectedTarget > selectedFunded ? selectedTarget - selectedFunded : 0n)
+    : undefined
+  const maxAmount = remainingTarget !== undefined ? Number(formatUnits(remainingTarget, 18)) : undefined
 
   return (
     <div className="flex flex-col h-full">
@@ -135,72 +157,15 @@ export default function FundingPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTasks.map((task, index) => {
-                const estimatedCost = Number(formatUnits(task.estimatedCost, 18))
-                const expectedCO2 = Number(formatUnits(task.expectedCO2, 0))
-                // eslint-disable-next-line react-hooks/rules-of-hooks
-                const { funded, target } = useGetFundingProgress(task.id)
-                const fundingPercentage = target && target > 0n ? Number((funded * 100n) / target) : 0
-                return (
-                  <motion.div
-                    key={Number(task.id)}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="border border-border rounded-lg overflow-hidden bg-card hover:shadow-lg transition-shadow"
-                  >
-                    {/* Image */}
-                    <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 overflow-hidden">
-                      <img src="/mangrove-planting-1.jpg" alt={task.description} className="w-full h-full object-cover" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-4 space-y-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-                            Task #{Number(task.id)}
-                          </span>
-                          <span className="text-xs text-foreground/60">{task.location}</span>
-                        </div>
-                        <h3 className="font-semibold text-foreground line-clamp-2">{task.description}</h3>
-                        <p className="text-sm text-foreground/60 mt-1 line-clamp-2">{task.proofRequirements}</p>
-                      </div>
-
-                      {/* Progress */}
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-foreground/60">Funding Progress</span>
-                          <span className="font-semibold text-foreground">
-                            {funded ? formatUnits(funded, 18) : "0"} / {estimatedCost.toLocaleString()} cUSD
-                          </span>
-                        </div>
-                        <div className="w-full h-2 bg-foreground/10 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${Math.min(fundingPercentage, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Credits */}
-                      <div className="flex items-center gap-2 text-sm text-foreground/70">
-                        <Leaf className="h-4 w-4 text-primary" />
-                        <span>{expectedCO2.toLocaleString()} CO₂ tons expected</span>
-                      </div>
-
-                      {/* Fund Button */}
-                      <Button
-                        onClick={() => handleFundProject(task.id)}
-                        className="w-full bg-primary hover:bg-primary/90 text-white"
-                        disabled={isFunding}
-                      >
-                        {isFunding ? "Processing..." : "Fund Now"}
-                      </Button>
-                    </div>
-                  </motion.div>
-                )
-              })}
+              {filteredTasks.map((task, index) => (
+                <TaskCard
+                  key={Number(task.id)}
+                  task={task}
+                  index={index}
+                  isLoading={fundingTaskId === task.id && isFunding}
+                  onFund={() => handleFundProject(task.id)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -259,10 +224,15 @@ export default function FundingPage() {
                 <div className="flex items-center gap-4">
                   <input
                     type="number"
-                    min="0.01"
+                    min={0}
+                    max={maxAmount !== undefined ? maxAmount : undefined}
                     step="0.01"
                     value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
+                    onChange={(e) => {
+                      const raw = Number(e.target.value)
+                      const clamped = Math.max(0, Math.min(maxAmount ?? Number.POSITIVE_INFINITY, isNaN(raw) ? 0 : raw))
+                      setFundAmount(clamped.toString())
+                    }}
                     className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     disabled={isFunding || fundSuccess}
                   />
@@ -277,7 +247,7 @@ export default function FundingPage() {
                     {fundAmount && selectedTask.estimatedCost > 0n
                       ? Math.round(
                           (Number(fundAmount) / Number(formatUnits(selectedTask.estimatedCost, 18))) *
-                            Number(formatUnits(selectedTask.expectedCO2, 0))
+                            Number(formatUnits(selectedTask.expectedCO2, 18))
                         )
                       : 0}
                   </p>
