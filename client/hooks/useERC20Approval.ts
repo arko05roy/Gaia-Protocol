@@ -1,7 +1,7 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { OZ_IERC20ABI } from '@/lib/abis';
+import { OZ_IERC20ABI as OZ_IERC20ABIImport } from '@/lib/abis';
 
-const ERC20_ABI = OZ_IERC20ABI as any;
+const ERC20_ABI = ((OZ_IERC20ABIImport as any)?.default || OZ_IERC20ABIImport || []) as any;
 
 // Celo testnet cUSD token address
 const CUSD_TOKEN_ADDRESS = '0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b' as const;

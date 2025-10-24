@@ -1,10 +1,11 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem';
-import { TaskRegistryABI } from '@/lib/abis';
+import { TaskRegistryABI as TaskRegistryABIImport } from '@/lib/abis';
 
-const TASK_REGISTRY_ABI = TaskRegistryABI as any;
+const TASK_REGISTRY_ABI_SRC = (TaskRegistryABIImport as any)?.default || TaskRegistryABIImport || [];
+const TASK_REGISTRY_ABI = ((TASK_REGISTRY_ABI_SRC as any)?.abi ?? TASK_REGISTRY_ABI_SRC) as any;
 
-const TASK_REGISTRY_ADDRESS = '0x5754C71c2474FE8F2B83C43432Faf0AC94cc24A5' as const;
+export const TASK_REGISTRY_ADDRESS = '0x5754C71c2474FE8F2B83C43432Faf0AC94cc24A5' as const;
 
 export enum TaskStatus {
   Proposed = 0,

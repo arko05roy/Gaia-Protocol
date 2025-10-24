@@ -1,9 +1,10 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { PredictionMarketABI } from '@/lib/abis';
+import { PredictionMarketABI as PredictionMarketABIImport } from '@/lib/abis';
 
-const PREDICTION_MARKET_ABI = PredictionMarketABI as any;
+const PREDICTION_MARKET_ABI_SRC = (PredictionMarketABIImport as any)?.default || PredictionMarketABIImport || [];
+const PREDICTION_MARKET_ABI = (((PREDICTION_MARKET_ABI_SRC as any)?.abi) ?? PREDICTION_MARKET_ABI_SRC) as any;
 
-const PREDICTION_MARKET_ADDRESS = '0x8c7Ffc95fcD2b9Dfb48272A0cEb6f54e7CE77b14' as const;
+export const PREDICTION_MARKET_ADDRESS = '0x8c7Ffc95fcD2b9Dfb48272A0cEb6f54e7CE77b14' as const;
 
 export interface Market {
   taskId: bigint;
@@ -19,6 +20,26 @@ export interface Market {
 export interface Position {
   yesShares: bigint;
   noShares: bigint;
+}
+
+/**
+ * Hook to check if a market exists for a given taskId
+ */
+export function useMarketExists(taskId: bigint | undefined) {
+  const { data, isLoading, error, refetch } = useReadContract({
+    address: PREDICTION_MARKET_ADDRESS,
+    abi: PREDICTION_MARKET_ABI,
+    functionName: 'marketExists',
+    args: taskId ? [taskId] : undefined,
+    query: { enabled: !!taskId },
+  });
+
+  return {
+    exists: (data as boolean | undefined) || false,
+    isLoading,
+    error,
+    refetch,
+  };
 }
 
 /**
@@ -59,6 +80,25 @@ export function useClaimWinnings() {
   };
 
   return { claimWinnings, hash, isPending, isConfirming, isSuccess };
+}
+
+/**
+ * Hook to create a market for a task
+ */
+export function useCreateMarket() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const createMarket = (taskId: bigint, resolutionDeadline: bigint) => {
+    writeContract({
+      address: PREDICTION_MARKET_ADDRESS,
+      abi: PREDICTION_MARKET_ABI,
+      functionName: 'createMarket',
+      args: [taskId, resolutionDeadline],
+    });
+  };
+
+  return { createMarket, hash, isPending, isConfirming, isSuccess, error };
 }
 
 /**

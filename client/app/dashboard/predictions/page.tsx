@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useAccount, useWatchContractEvent } from "wagmi"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -16,177 +17,339 @@ import {
   Users,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { parseEther, formatEther } from "viem"
+import {
+  useGetTasksByStatus,
+  useGetTasks,
+  TaskStatus,
+  type Task
+} from "@/hooks/useTaskRegistry"
+import { TASK_REGISTRY_ADDRESS } from "@/hooks/useTaskRegistry"
+import { TaskRegistryABI as TaskRegistryABIImport } from "@/lib/abis"
+import {
+  useGetMarket,
+  useGetMarketOdds,
+  useGetPosition,
+  useBuyShares,
+  useClaimWinnings,
+  useIsMarketResolved,
+  useGetMarketVolume,
+  useMarketExists,
+  useCreateMarket,
+  useGetMarketCreationFee,
+  PREDICTION_MARKET_ADDRESS,
+  type Market
+} from "@/hooks/usePredictionMarket"
+import { useGetAllowance, useApproveToken, useCUSDTokenAddress } from "@/hooks/useERC20Approval"
 
-// Mock data for prediction events
-const mockEvents = [
-  {
-    id: "1",
-    title: "Global Temperature Rise by 2030",
-    description: "Will global average temperature increase by more than 1.5°C by 2030?",
-    yesOdds: 0.75,
-    noOdds: 0.25,
-    marketVolume: "2,450 CUSD",
-    closeDate: "2024-12-31",
-    status: "active",
-    category: "Climate"
-  },
-  {
-    id: "2", 
-    title: "Carbon Credit Price Target",
-    description: "Will carbon credit prices reach $50/ton by end of 2024?",
-    yesOdds: 0.60,
-    noOdds: 0.40,
-    marketVolume: "1,890 CUSD",
-    closeDate: "2024-12-31",
-    status: "active",
-    category: "Economics"
-  },
-  {
-    id: "3",
-    title: "Renewable Energy Adoption",
-    description: "Will renewable energy exceed 50% of global electricity by 2025?",
-    yesOdds: 0.45,
-    noOdds: 0.55,
-    marketVolume: "3,200 CUSD",
-    closeDate: "2025-01-01",
-    status: "active",
-    category: "Energy"
-  },
-  {
-    id: "4",
-    title: "Ocean Acidification Level",
-    description: "Will ocean pH levels drop below 7.8 by 2030?",
-    yesOdds: 0.80,
-    noOdds: 0.20,
-    marketVolume: "980 CUSD",
-    closeDate: "2024-11-15",
-    status: "closed",
-    category: "Environment"
-  }
-]
-
-// Mock chart data
-const mockChartData = [
-  { date: "2024-01", odds: 0.45 },
-  { date: "2024-02", odds: 0.52 },
-  { date: "2024-03", odds: 0.48 },
-  { date: "2024-04", odds: 0.55 },
-  { date: "2024-05", odds: 0.60 },
-  { date: "2024-06", odds: 0.65 },
-  { date: "2024-07", odds: 0.70 },
-  { date: "2024-08", odds: 0.75 }
-]
+// Ensure ABI is an array (handle default export wrapper from JSON import)
+const TaskRegistryABI = (TaskRegistryABIImport as any)?.default || TaskRegistryABIImport || []
 
 export default function PredictionMarket() {
-  const [selectedEvent, setSelectedEvent] = useState<any>(null)
+  const { address: userAddress } = useAccount()
+  const [selectedMarketId, setSelectedMarketId] = useState<bigint | undefined>(undefined)
   const [betAmount, setBetAmount] = useState("")
   const [betSide, setBetSide] = useState<"yes" | "no" | null>(null)
   const [showBetModal, setShowBetModal] = useState(false)
 
+  // listen to task-created and status-changed to hint user for market creation
+  useWatchContractEvent({
+    address: TASK_REGISTRY_ADDRESS,
+    abi: TaskRegistryABI as any,
+    eventName: 'TaskCreated',
+    onLogs: (logs) => {
+      console.debug('TaskCreated event', logs)
+    }
+  })
+  useWatchContractEvent({
+    address: TASK_REGISTRY_ADDRESS,
+    abi: TaskRegistryABI as any,
+    eventName: 'TaskStatusChanged',
+    onLogs: (logs) => {
+      console.debug('TaskStatusChanged event', logs)
+    }
+  })
+
+  // Fetch all funded and in-progress tasks (these have prediction markets)
+  const { taskIds: fundedTaskIds } = useGetTasksByStatus(TaskStatus.Funded)
+  const { taskIds: inProgressTaskIds } = useGetTasksByStatus(TaskStatus.InProgress)
+  const { taskIds: underReviewTaskIds } = useGetTasksByStatus(TaskStatus.UnderReview)
+  
+  const allTaskIds = useMemo(() => {
+    return [...(fundedTaskIds || []), ...(inProgressTaskIds || []), ...(underReviewTaskIds || [])]
+  }, [fundedTaskIds, inProgressTaskIds, underReviewTaskIds])
+
+  // Fetch tasks
+  const { tasks = [] } = useGetTasks(allTaskIds.length > 0 ? allTaskIds : undefined)
+  
+  // Buy shares hook
+  const { buyShares, isPending: isBuying, isSuccess: buySuccess } = useBuyShares()
+  const { claimWinnings, isPending: isClaiming, isSuccess: claimSuccess } = useClaimWinnings()
+  const { fee } = useGetMarketCreationFee()
+  const cUSD = useCUSDTokenAddress()
+  const { approveToken, isPending: isApproving, isSuccess: isApproveSuccess } = useApproveToken()
+
   const handlePlaceBet = () => {
-    // Mock bet placement - in real app this would call API
-    console.log("Placing bet:", { selectedEvent, betAmount, betSide })
+    if (!selectedMarketId || !betAmount || !betSide) return
+    
+    try {
+      const amount = parseEther(betAmount)
+      buyShares(selectedMarketId, betSide === "yes", amount)
+    } catch (error) {
+      console.error("Error placing bet:", error)
+    }
+  }
+
+  const handleClaimWinnings = () => {
+    if (!selectedMarketId) return
+    claimWinnings(selectedMarketId)
+  }
+
+  // Reset modal after successful transaction
+  if (buySuccess || claimSuccess) {
     setShowBetModal(false)
     setBetAmount("")
     setBetSide(null)
-    setSelectedEvent(null)
+    setSelectedMarketId(undefined)
   }
 
-  const getStatusColor = (status: string) => {
+  const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
-      case "active": return "bg-green-100 text-green-800"
-      case "closed": return "bg-gray-100 text-gray-800"
-      default: return "bg-gray-100 text-gray-800"
+      case TaskStatus.Funded:
+      case TaskStatus.InProgress:
+        return "bg-green-100 text-green-800"
+      case TaskStatus.UnderReview:
+        return "bg-blue-100 text-blue-800"
+      case TaskStatus.Verified:
+        return "bg-emerald-100 text-emerald-800"
+      case TaskStatus.Rejected:
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getTaskStatusIcon = (status: TaskStatus) => {
     switch (status) {
-      case "active": return <Clock className="h-4 w-4" />
-      case "closed": return <CheckCircle className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
+      case TaskStatus.Funded:
+      case TaskStatus.InProgress:
+        return <Clock className="h-4 w-4" />
+      case TaskStatus.UnderReview:
+        return <AlertCircle className="h-4 w-4" />
+      case TaskStatus.Verified:
+        return <CheckCircle className="h-4 w-4" />
+      case TaskStatus.Rejected:
+        return <AlertCircle className="h-4 w-4" />
+      default:
+        return <Clock className="h-4 w-4" />
     }
   }
 
-  const EventCard = ({ event }: { event: any }) => (
-    <Card className="gaia-card">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-lg font-semibold text-foreground">{event.title}</h3>
-            <Badge className={getStatusColor(event.status)}>
-              {getStatusIcon(event.status)}
-              <span className="ml-1 capitalize">{event.status}</span>
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
-          
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{Math.round(event.yesOdds * 100)}%</div>
-              <div className="text-sm text-green-700">YES</div>
-            </div>
-            <div className="text-center p-3 bg-red-50 rounded-lg">
-              <div className="text-2xl font-bold text-red-600">{Math.round(event.noOdds * 100)}%</div>
-              <div className="text-sm text-red-700">NO</div>
+  const getTaskStatusLabel = (status: TaskStatus) => {
+    switch (status) {
+      case TaskStatus.Proposed:
+        return "Proposed"
+      case TaskStatus.Funded:
+        return "Funded"
+      case TaskStatus.InProgress:
+        return "In Progress"
+      case TaskStatus.UnderReview:
+        return "Under Review"
+      case TaskStatus.Verified:
+        return "Verified"
+      case TaskStatus.Rejected:
+        return "Rejected"
+      default:
+        return "Unknown"
+    }
+  }
+
+  const MarketCard = ({ taskId, task }: { taskId: bigint; task: Task }) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { market } = useGetMarket(taskId)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { yesOdds, noOdds } = useGetMarketOdds(taskId)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { volume } = useGetMarketVolume(taskId)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { isResolved } = useIsMarketResolved(taskId)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { exists } = useMarketExists(taskId)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { allowance, refetch: refetchAllowance } = useGetAllowance(cUSD, userAddress as `0x${string}` | undefined, PREDICTION_MARKET_ADDRESS)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { createMarket, isPending: isCreating, isSuccess: created, error: createError } = useCreateMarket()
+
+    // After successful approval, refetch allowance automatically
+    useEffect(() => {
+      if (isApproveSuccess) {
+        refetchAllowance()
+      }
+    }, [isApproveSuccess])
+
+    // If market doesn't exist yet, show CTA to create it
+    if (!exists) {
+      const required = fee || 0n
+      const approvedEnough = allowance !== undefined && required !== undefined ? (allowance as bigint) >= (required as bigint) : false
+      const now = BigInt(Math.floor(Date.now() / 1000))
+      // Ensure resolutionDeadline is strictly in the future to avoid preflight simulation revert
+      const base = (task.deadline as bigint) > now ? (task.deadline as bigint) : now
+      const deadline = base + 7n * 24n * 60n * 60n
+
+      return (
+        <Card className="gaia-card">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="text-lg font-semibold text-foreground">{task.description.substring(0, 50)}...</h3>
+                <Badge className={getTaskStatusColor(task.status)}>
+                  {getTaskStatusIcon(task.status)}
+                  <span className="ml-1">{getTaskStatusLabel(task.status)}</span>
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">No market exists yet for this task.</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <DollarSign className="h-4 w-4" />
-              <span>{event.marketVolume}</span>
+          <div className="flex gap-2">
+            {!approvedEnough ? (
+              <Button
+                className="flex-1"
+                disabled={!userAddress || fee === undefined || isApproving}
+                onClick={async () => {
+                  if (fee === undefined) return
+                  approveToken(cUSD as `0x${string}`, PREDICTION_MARKET_ADDRESS, fee)
+                }}
+              >
+                {isApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Approve cUSD ({fee ? `${formatEther(fee)} cUSD` : '...'} )
+              </Button>
+            ) : (
+              <Button
+                className="flex-1 bg-primary hover:bg-primary/90"
+                disabled={!userAddress || isCreating}
+                onClick={() => createMarket(taskId, deadline)}
+              >
+                {isCreating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Target className="h-4 w-4 mr-2" />}
+                Create Market
+              </Button>
+            )}
+            {createError ? (
+              <div className="text-xs text-red-600 mt-2">
+                {(createError as any)?.shortMessage || (createError as any)?.message || 'Transaction simulation failed. Check cUSD balance and allowance.'}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      )
+    }
+
+    if (!market) return null
+
+    const yesPercent = yesOdds ? Number(yesOdds) / 100 : 50
+    const noPercent = noOdds ? Number(noOdds) / 100 : 50
+    const volumeFormatted = volume ? formatEther(volume) : "0"
+
+    const deadlineDate = new Date(Number(market.resolutionDeadline) * 1000)
+    const deadlineStr = deadlineDate.toLocaleDateString()
+
+    const isActive = task.status === TaskStatus.Funded || task.status === TaskStatus.InProgress
+
+    return (
+      <Card className="gaia-card">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h3 className="text-lg font-semibold text-foreground">{task.description.substring(0, 50)}...</h3>
+              <Badge className={getTaskStatusColor(task.status)}>
+                {getTaskStatusIcon(task.status)}
+                <span className="ml-1">{getTaskStatusLabel(task.status)}</span>
+              </Badge>
             </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              <span>{event.closeDate}</span>
+            <p className="text-sm text-muted-foreground mb-3">{task.description.substring(0, 100)}...</p>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{yesPercent.toFixed(1)}%</div>
+                <div className="text-sm text-green-700">YES</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{noPercent.toFixed(1)}%</div>
+                <div className="text-sm text-red-700">NO</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <DollarSign className="h-4 w-4" />
+                <span>{volumeFormatted} cUSD</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                <span>{deadlineStr}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2">
-        {event.status === "active" && (
-          <>
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          {isActive && !isResolved && (
+            <>
+              <Button
+                variant="outline"
+                className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
+                onClick={() => {
+                  setSelectedMarketId(taskId)
+                  setBetSide("yes")
+                  setShowBetModal(true)
+                }}
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Buy YES
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => {
+                  setSelectedMarketId(taskId)
+                  setBetSide("no")
+                  setShowBetModal(true)
+                }}
+              >
+                <TrendingDown className="h-4 w-4 mr-2" />
+                Buy NO
+              </Button>
+            </>
+          )}
+          
+          {isResolved && (
             <Button
-              variant="outline"
-              className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
+              className="w-full bg-primary hover:bg-primary/90"
               onClick={() => {
-                setSelectedEvent(event)
-                setBetSide("yes")
-                setShowBetModal(true)
+                setSelectedMarketId(taskId)
+                handleClaimWinnings()
               }}
+              disabled={isClaiming}
             >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Buy YES
+              {isClaiming ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Target className="h-4 w-4 mr-2" />}
+              Claim Winnings
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
-              onClick={() => {
-                setSelectedEvent(event)
-                setBetSide("no")
-                setShowBetModal(true)
-              }}
-            >
-              <TrendingDown className="h-4 w-4 mr-2" />
-              Buy NO
-            </Button>
-          </>
-        )}
-        
-        {event.status === "closed" && (
-          <div className="w-full text-center py-2 text-muted-foreground text-sm">
-            Market closed - Results pending
-          </div>
-        )}
-      </div>
-    </Card>
-  )
+          )}
+
+          {!isActive && !isResolved && (
+            <div className="w-full text-center py-2 text-muted-foreground text-sm">
+              Market closed - Results pending
+            </div>
+          )}
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -210,7 +373,7 @@ export default function PredictionMarket() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-muted-foreground text-sm mb-1">Active Markets</p>
-                  <p className="text-3xl font-bold text-primary">{mockEvents.filter(e => e.status === "active").length}</p>
+                  <p className="text-3xl font-bold text-primary">{allTaskIds.length}</p>
                 </div>
                 <BarChart3 className="text-primary" size={32} />
               </div>
@@ -220,7 +383,9 @@ export default function PredictionMarket() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-muted-foreground text-sm mb-1">Total Volume</p>
-                  <p className="text-3xl font-bold text-primary">8.5K CUSD</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {allTaskIds.length > 0 ? "Loading..." : "0 cUSD"}
+                  </p>
                 </div>
                 <DollarSign className="text-primary" size={32} />
               </div>
@@ -229,8 +394,8 @@ export default function PredictionMarket() {
             <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm mb-1">Active Traders</p>
-                  <p className="text-3xl font-bold text-primary">1,247</p>
+                  <p className="text-muted-foreground text-sm mb-1">Your Positions</p>
+                  <p className="text-3xl font-bold text-primary">{userAddress ? "View" : "Connect"}</p>
                 </div>
                 <Users className="text-primary" size={32} />
               </div>
@@ -240,49 +405,30 @@ export default function PredictionMarket() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-muted-foreground text-sm mb-1">Your Portfolio</p>
-                  <p className="text-3xl font-bold text-primary">2.3K CUSD</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {userAddress ? "Loading..." : "Connect"}
+                  </p>
                 </div>
                 <TrendingUp className="text-primary" size={32} />
               </div>
             </Card>
           </div>
 
-          {/* Odds Chart */}
-          <Card className="gaia-card">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-foreground mb-2">Market Trends</h3>
-              <p className="text-sm text-muted-foreground">Historical odds movement for climate predictions</p>
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mockChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis domain={[0, 1]} />
-                  <Tooltip 
-                    formatter={(value: number) => [`${Math.round(value * 100)}%`, "YES Odds"]}
-                    labelFormatter={(label) => `Date: ${label}`}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="odds" 
-                    stroke="#16a34a" 
-                    strokeWidth={2}
-                    dot={{ fill: "#16a34a", strokeWidth: 2, r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Events List */}
+          {/* Markets List */}
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-4">Prediction Events</h2>
-            <div className="space-y-4">
-              {mockEvents.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Active Prediction Markets</h2>
+            {allTaskIds.length === 0 ? (
+              <Card className="gaia-card p-8 text-center">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No active prediction markets yet</p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {tasks.map((task) => (
+                  <MarketCard key={task.id} taskId={task.id} task={task} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -298,16 +444,16 @@ export default function PredictionMarket() {
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-2">
-                {selectedEvent?.title}
+                Market ID: {selectedMarketId?.toString()}
               </p>
               <p className="text-sm text-foreground">
-                Current {betSide === "yes" ? "YES" : "NO"} odds: {Math.round((betSide === "yes" ? selectedEvent?.yesOdds : selectedEvent?.noOdds) * 100)}%
+                Betting on: {betSide === "yes" ? "YES" : "NO"}
               </p>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Bet Amount (CUSD)
+                Amount (cUSD)
               </label>
               <Input
                 type="number"
@@ -321,7 +467,7 @@ export default function PredictionMarket() {
 
             <div className="bg-muted p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                Potential payout: {betAmount ? `${(parseFloat(betAmount) / (betSide === "yes" ? selectedEvent?.yesOdds : selectedEvent?.noOdds)).toFixed(2)} CUSD` : "0 CUSD"}
+                {betAmount ? `You will spend ${betAmount} cUSD` : "Enter an amount"}
               </p>
             </div>
 
@@ -335,10 +481,17 @@ export default function PredictionMarket() {
               </Button>
               <Button
                 onClick={handlePlaceBet}
-                disabled={!betAmount || parseFloat(betAmount) <= 0}
+                disabled={!betAmount || parseFloat(betAmount) <= 0 || isBuying}
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                Place Bet
+                {isBuying ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Placing...
+                  </>
+                ) : (
+                  "Place Bet"
+                )}
               </Button>
             </div>
           </div>
