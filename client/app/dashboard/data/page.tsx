@@ -1,100 +1,102 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { 
   Database, 
-  Search, 
-  Filter,
+  Search,
   Eye,
   Download,
   Upload,
   Users,
-  Target,
   TrendingUp,
   Shield,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react"
+import {
+  useGetAllPublicEntries,
+  useGetDataEntry,
+  useGetDatasetStats,
+  useGetStatsByProjectType,
+  type DataEntry
+} from "@/hooks"
 
-// Mock data for datasets
-const mockDatasets = [
-  {
-    id: "1",
-    name: "Global Carbon Emissions 2023",
-    category: "Emissions",
-    contributors: 15,
-    accuracy: 0.94,
-    stake: "2,500 CUSD",
-    size: "2.3 GB",
-    lastUpdated: "2024-01-15",
-    status: "verified"
-  },
-  {
-    id: "2",
-    name: "Ocean Temperature Anomalies",
-    category: "Climate",
-    contributors: 8,
-    accuracy: 0.89,
-    stake: "1,800 CUSD",
-    size: "1.7 GB",
-    lastUpdated: "2024-01-10",
-    status: "pending"
-  },
-  {
-    id: "3",
-    name: "Forest Cover Change Analysis",
-    category: "Environment",
-    contributors: 22,
-    accuracy: 0.92,
-    stake: "3,200 CUSD",
-    size: "4.1 GB",
-    lastUpdated: "2024-01-12",
-    status: "verified"
-  },
-  {
-    id: "4",
-    name: "Renewable Energy Production",
-    category: "Energy",
-    contributors: 12,
-    accuracy: 0.87,
-    stake: "1,950 CUSD",
-    size: "1.2 GB",
-    lastUpdated: "2024-01-08",
-    status: "verified"
-  },
-  {
-    id: "5",
-    name: "Air Quality Index Global",
-    category: "Environment",
-    contributors: 18,
-    accuracy: 0.91,
-    stake: "2,100 CUSD",
-    size: "3.5 GB",
-    lastUpdated: "2024-01-14",
-    status: "pending"
-  }
-]
+const categories = ["All", "Mangrove Restoration", "Solar Installation", "Renewable Energy", "Forest Conservation"]
 
-const categories = ["All", "Emissions", "Climate", "Environment", "Energy"]
+interface ProcessedDataset {
+  id: string
+  taskId: bigint
+  name: string
+  category: string
+  contributors: number
+  accuracy: number
+  stake: string
+  size: string
+  lastUpdated: string
+  status: string
+  co2Offset: bigint
+  cost: bigint
+  location: string
+  qualityScore: bigint
+  contributor: string
+  ipfsHash: string
+}
 
 export default function DataRegistry() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedDataset, setSelectedDataset] = useState<any>(null)
+  const [selectedDataset, setSelectedDataset] = useState<ProcessedDataset | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
 
-  const filteredDatasets = mockDatasets.filter(dataset => {
-    const matchesSearch = dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         dataset.category.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory === "All" || dataset.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  // Fetch on-chain data
+  const { taskIds: publicEntryIds, isLoading: isLoadingEntries } = useGetAllPublicEntries()
+  const { totalEntries, totalCO2, totalCost, isLoading: isLoadingStats } = useGetDatasetStats()
+  
+  // Fetch individual data entries
+  const { dataEntry, isLoading: isLoadingDataEntries } = useGetDataEntry(
+    publicEntryIds && publicEntryIds.length > 0 ? publicEntryIds[0] : undefined
+  )
+
+  // Process on-chain data into displayable datasets
+  const processedDatasets = useMemo<ProcessedDataset[]>(() => {
+    if (!dataEntry || !dataEntry.taskId) return []
+    
+    const entry = dataEntry as DataEntry
+    return [{
+      id: entry.taskId.toString(),
+      taskId: entry.taskId,
+      name: `${entry.projectType} - ${entry.location}`,
+      category: entry.projectType,
+      contributors: 1, // Single contributor per entry
+      accuracy: Number(entry.qualityScore) / 100,
+      stake: `${(Number(entry.co2Offset) * 100).toLocaleString()} cUSD`,
+      size: "Dataset",
+      lastUpdated: new Date(Number(entry.timestamp) * 1000).toLocaleDateString(),
+      status: "verified",
+      co2Offset: entry.co2Offset,
+      cost: entry.cost,
+      location: entry.location,
+      qualityScore: entry.qualityScore,
+      contributor: entry.contributor,
+      ipfsHash: entry.ipfsHash
+    }]
+  }, [dataEntry])
+
+  const filteredDatasets = useMemo(() => {
+    return processedDatasets.filter(dataset => {
+      const matchesSearch = dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           dataset.category.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesCategory = selectedCategory === "All" || dataset.category === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+  }, [processedDatasets, searchTerm, selectedCategory])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -112,10 +114,12 @@ export default function DataRegistry() {
     }
   }
 
-  const handleViewDetails = (dataset: any) => {
+  const handleViewDetails = (dataset: ProcessedDataset) => {
     setSelectedDataset(dataset)
     setShowDetailsModal(true)
   }
+
+  const isLoading = isLoadingEntries || isLoadingStats || isLoadingDataEntries
 
   return (
     <div className="flex flex-col h-full">
@@ -139,7 +143,9 @@ export default function DataRegistry() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-muted-foreground text-sm mb-1">Total Datasets</p>
-                  <p className="text-3xl font-bold text-primary">{mockDatasets.length}</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {isLoadingStats ? <Loader2 className="h-8 w-8 animate-spin" /> : Number(totalEntries)}
+                  </p>
                 </div>
                 <Database className="text-primary" size={32} />
               </div>
@@ -148,9 +154,9 @@ export default function DataRegistry() {
             <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm mb-1">Verified Datasets</p>
+                  <p className="text-muted-foreground text-sm mb-1">Total CO₂ Offset</p>
                   <p className="text-3xl font-bold text-primary">
-                    {mockDatasets.filter(d => d.status === "verified").length}
+                    {isLoadingStats ? <Loader2 className="h-8 w-8 animate-spin" /> : `${Number(totalCO2).toLocaleString()} tons`}
                   </p>
                 </div>
                 <Shield className="text-primary" size={32} />
@@ -160,9 +166,9 @@ export default function DataRegistry() {
             <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm mb-1">Total Contributors</p>
+                  <p className="text-muted-foreground text-sm mb-1">Total Cost</p>
                   <p className="text-3xl font-bold text-primary">
-                    {mockDatasets.reduce((sum, d) => sum + d.contributors, 0)}
+                    {isLoadingStats ? <Loader2 className="h-8 w-8 animate-spin" /> : `${Number(totalCost).toLocaleString()} cUSD`}
                   </p>
                 </div>
                 <Users className="text-primary" size={32} />
@@ -172,8 +178,11 @@ export default function DataRegistry() {
             <Card className="gaia-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm mb-1">Total Staked</p>
-                  <p className="text-3xl font-bold text-primary">11.5K CUSD</p>
+                  <p className="text-muted-foreground text-sm mb-1">Avg Cost/Ton</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {isLoadingStats ? <Loader2 className="h-8 w-8 animate-spin" /> : 
+                      Number(totalCO2) > 0 ? `${(Number(totalCost) / Number(totalCO2)).toFixed(2)} cUSD` : "N/A"}
+                  </p>
                 </div>
                 <TrendingUp className="text-primary" size={32} />
               </div>
@@ -211,72 +220,91 @@ export default function DataRegistry() {
 
           {/* Datasets Table */}
           <Card className="gaia-card">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Dataset Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Contributors</TableHead>
-                    <TableHead>Accuracy</TableHead>
-                    <TableHead>Stake</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDatasets.map((dataset) => (
-                    <TableRow key={dataset.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium text-foreground">{dataset.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {dataset.size} • Updated {dataset.lastUpdated}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{dataset.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">{dataset.contributors}</TableCell>
-                      <TableCell className="text-center">
-                        <span className="font-medium text-primary">
-                          {Math.round(dataset.accuracy * 100)}%
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-medium">{dataset.stake}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(dataset.status)}>
-                          {getStatusIcon(dataset.status)}
-                          <span className="ml-1 capitalize">{dataset.status}</span>
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewDetails(dataset)}
-                            className="gap-1"
-                          >
-                            <Eye className="h-4 w-4" />
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download
-                          </Button>
-                        </div>
-                      </TableCell>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground">Loading datasets...</p>
+                </div>
+              </div>
+            ) : filteredDatasets.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Database className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No datasets found</p>
+                  <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dataset Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>CO₂ Offset</TableHead>
+                      <TableHead>Quality Score</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDatasets.map((dataset) => (
+                      <TableRow key={dataset.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium text-foreground">{dataset.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              ID: {dataset.taskId.toString()}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{dataset.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-medium">{Number(dataset.co2Offset).toLocaleString()} tons</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-medium text-primary">
+                            {Number(dataset.qualityScore)}%
+                          </span>
+                        </TableCell>
+                        <TableCell>{dataset.location}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(dataset.status)}>
+                            {getStatusIcon(dataset.status)}
+                            <span className="ml-1 capitalize">{dataset.status}</span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewDetails(dataset)}
+                              className="gap-1"
+                            >
+                              <Eye className="h-4 w-4" />
+                              View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1"
+                            >
+                              <Download className="h-4 w-4" />
+                              Download
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </Card>
         </div>
       </div>
@@ -295,22 +323,22 @@ export default function DataRegistry() {
                   <p className="text-foreground">{selectedDataset.category}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Size</label>
-                  <p className="text-foreground">{selectedDataset.size}</p>
+                  <label className="text-sm font-medium text-muted-foreground">Location</label>
+                  <p className="text-foreground">{selectedDataset.location}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Contributors</label>
-                  <p className="text-foreground">{selectedDataset.contributors}</p>
+                  <label className="text-sm font-medium text-muted-foreground">CO₂ Offset</label>
+                  <p className="text-foreground font-medium">{Number(selectedDataset.co2Offset).toLocaleString()} tons</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Accuracy</label>
+                  <label className="text-sm font-medium text-muted-foreground">Quality Score</label>
                   <p className="text-foreground font-medium text-primary">
-                    {Math.round(selectedDataset.accuracy * 100)}%
+                    {Number(selectedDataset.qualityScore)}%
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Stake</label>
-                  <p className="text-foreground">{selectedDataset.stake}</p>
+                  <label className="text-sm font-medium text-muted-foreground">Cost</label>
+                  <p className="text-foreground">{Number(selectedDataset.cost).toLocaleString()} cUSD</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
@@ -319,23 +347,30 @@ export default function DataRegistry() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2">Description</label>
-                <p className="text-foreground">
-                  Comprehensive dataset containing detailed environmental measurements and analysis.
-                  This dataset has been verified by multiple contributors and meets quality standards.
-                </p>
+                <label className="text-sm font-medium text-muted-foreground mb-2">Contributor</label>
+                <p className="text-foreground font-mono text-sm break-all">{selectedDataset.contributor}</p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2">Data Preview</label>
+                <label className="text-sm font-medium text-muted-foreground mb-2">Task ID</label>
+                <p className="text-foreground font-mono text-sm">{selectedDataset.taskId.toString()}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2">IPFS Hash</label>
+                <p className="text-foreground font-mono text-sm break-all">{selectedDataset.ipfsHash}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2">Dataset Information</label>
                 <div className="bg-muted p-4 rounded-lg">
-                  <pre className="text-sm text-muted-foreground">
-{`Date,Location,Temperature,CO2_Level,Quality_Score
-2024-01-01,Location_A,22.5,415.2,0.95
-2024-01-01,Location_B,23.1,418.7,0.92
-2024-01-01,Location_C,21.8,412.3,0.98
-...`}
-                  </pre>
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Status:</strong> Verified and published on-chain</p>
+                    <p><strong>Project Type:</strong> {selectedDataset.category}</p>
+                    <p><strong>Environmental Impact:</strong> {Number(selectedDataset.co2Offset).toLocaleString()} tons of CO₂ offset</p>
+                    <p><strong>Data Quality:</strong> {Number(selectedDataset.qualityScore)}% confidence score</p>
+                    <p><strong>Accessibility:</strong> Public dataset available for research</p>
+                  </div>
                 </div>
               </div>
 
@@ -347,9 +382,16 @@ export default function DataRegistry() {
                 >
                   Close
                 </Button>
-                <Button className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+                <Button 
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+                  onClick={() => {
+                    if (selectedDataset.ipfsHash) {
+                      window.open(`https://ipfs.io/ipfs/${selectedDataset.ipfsHash}`, '_blank')
+                    }
+                  }}
+                >
                   <Download className="h-4 w-4" />
-                  Download Dataset
+                  View on IPFS
                 </Button>
               </div>
             </div>
