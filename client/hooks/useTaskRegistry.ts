@@ -75,8 +75,34 @@ export function useGetTask(taskId: bigint | undefined) {
     query: { enabled: !!taskId },
   });
 
+  // The getTask function returns a tuple in some ABIs. Normalize to Task object.
+  let mappedTask: Task | undefined = undefined;
+  if (data) {
+    const t: any = data as any;
+    if (Array.isArray(t)) {
+      mappedTask = {
+        id: BigInt(t[0]),
+        proposer: t[1],
+        description: t[2],
+        estimatedCost: BigInt(t[3]),
+        expectedCO2: BigInt(t[4]),
+        location: t[5],
+        deadline: BigInt(t[6]),
+        proofRequirements: t[7],
+        ipfsHash: t[8],
+        status: Number(t[9]) as TaskStatus,
+        createdAt: BigInt(t[10]),
+        assignedOperator: t[11],
+        actualCO2: BigInt(t[12] ?? 0),
+        proofHash: t[13] || '',
+      };
+    } else {
+      mappedTask = t as Task;
+    }
+  }
+
   return {
-    task: data as Task | undefined,
+    task: mappedTask,
     isLoading,
     error,
   };

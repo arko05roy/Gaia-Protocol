@@ -178,8 +178,24 @@ export function useGetTaskStake(taskId: bigint | undefined) {
     query: { enabled: !!taskId },
   });
 
+  // Normalize tuple/struct into StakeInfo
+  let mapped: StakeInfo | undefined = undefined;
+  if (data) {
+    const s: any = data as any;
+    if (Array.isArray(s)) {
+      mapped = {
+        operator: s[0] || '0x0000000000000000000000000000000000000000',
+        amount: BigInt(s[1] ?? 0),
+        lockedAt: BigInt(s[2] ?? 0),
+        status: Number(s[3] ?? 0) as StakeStatus,
+      };
+    } else if (typeof s === 'object' && s !== null) {
+      mapped = s as StakeInfo;
+    }
+  }
+
   return {
-    stakeInfo: data as StakeInfo | undefined,
+    stakeInfo: mapped,
     isLoading,
     error,
   };

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useGetTotalTasks, useGetTasks, TaskStatus } from "@/hooks"
 import { useAccount } from "wagmi"
 import { Card } from "@/components/ui/card"
@@ -10,6 +11,7 @@ import { Plus, Loader } from "lucide-react"
 import { formatUnits } from "viem"
 
 export default function ProjectsPage() {
+  const router = useRouter()
   const { address } = useAccount()
   const { totalTasks } = useGetTotalTasks()
   const taskIds = totalTasks ? Array.from({ length: Number(totalTasks) }, (_, i) => BigInt(i + 1)) : []
@@ -71,7 +73,11 @@ export default function ProjectsPage() {
             {tasks.map((task) => {
               const statusInfo = getStatusBadge(task.status)
               return (
-                <Card key={Number(task.id)} className="p-6 hover:shadow-lg transition-shadow">
+                <Card 
+                  key={Number(task.id)} 
+                  className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/dashboard/task/${Number(task.id)}`)}
+                >
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-bold line-clamp-2">{task.description}</h3>
