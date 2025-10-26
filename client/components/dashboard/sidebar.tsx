@@ -34,17 +34,11 @@ const menuItems = [
   { icon: Coins, label: "Sell Carbon Credits", href: "/dashboard/sell-credits" },
   { icon: Database, label: "Data Marketplace", href: "/dashboard/marketplace" },
   { icon: Wallet, label: "My Carbon Assets", href: "/dashboard/assets" },
-]
-
-const advancedDashboardItems = [
-  { icon: User, label: "Operator Dashboard", href: "/dashboard/operator" },
-  { icon: Target, label: "Prediction Market", href: "/dashboard/predictions" },
+   { icon: Target, label: "Prediction Market", href: "/dashboard/predictions" },
   { icon: Database, label: "Data Registry", href: "/dashboard/data" },
   { icon: Brain, label: "Model Registry", href: "/dashboard/models" },
-  { icon: FileText, label: "Task Detail", href: "/dashboard/task/1" },
-  { icon: User, label: "Profile", href: "/dashboard/profile" },
-  { icon: BarChart, label: "Analytics", href: "/dashboard/analytics" },
 ]
+
 
 export default function DashboardSidebar() {
   const [collapsed, setCollapsed] = useState(false)
@@ -90,40 +84,7 @@ export default function DashboardSidebar() {
         })}
 
         {/* Advanced Dashboard Dropdown */}
-        {!collapsed && (
-          <div className="pt-2">
-            <button
-              onClick={() => setAdvancedDashboardOpen(!advancedDashboardOpen)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-green-50 hover:text-green-700 w-full"
-            >
-              <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-              <span className="flex-1 text-left">Advanced Dashboard</span>
-              {advancedDashboardOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRightIcon className="h-4 w-4" />
-              )}
-            </button>
-            
-            {advancedDashboardOpen && (
-              <div className="ml-4 mt-2 space-y-1">
-                {advancedDashboardItems.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-primary/10 text-foreground/70 hover:text-primary pl-8"
-                    >
-                      <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
+     
       </nav>
     </aside>
   )

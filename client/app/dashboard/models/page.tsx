@@ -60,7 +60,7 @@ interface ProcessedModel {
 export default function ModelRegistry() {
   const { address: userAddress } = useAccount()
   const cusdTokenAddress = useCUSDTokenAddress()
-  const MODEL_REGISTRY_ADDRESS = '0xeEc45Fd463EA8137e46170694414703Ebb791119' as const
+  const MODEL_REGISTRY_ADDRESS = '0x88A67A92415e4aA2f5bE9ADE7173438C54f37795' as const
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")

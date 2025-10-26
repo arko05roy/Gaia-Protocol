@@ -42,7 +42,7 @@ contract PredictionMarket is Ownable, Pausable, ReentrancyGuard {
     mapping(uint256 => mapping(address => Position)) public positions;
     
     // Market creation fee
-    uint256 public marketCreationFee = 100 ether; // 100 cUSD
+    uint256 public marketCreationFee = 0.2 ether; // 0.2 cUSD
     
     // ============ Events ============
     

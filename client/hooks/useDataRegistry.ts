@@ -3,7 +3,7 @@ import { DataRegistryABI } from '@/lib/abis';
 
 const DATA_REGISTRY_ABI = DataRegistryABI as any;
 
-const DATA_REGISTRY_ADDRESS = '0x31DA867c6C12eCEBbb738d97198792901431e228' as const;
+const DATA_REGISTRY_ADDRESS = '0xB94b5C0946446Ab1B3FC0ed0122c3DCBF6BA11f7' as const;
 
 export interface DataEntry {
   taskId: bigint;

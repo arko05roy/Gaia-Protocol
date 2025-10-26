@@ -59,5 +59,5 @@ export function useSetApprovalForAll() {
  * Hook to get the Carbon Credit Minter address (ERC1155 contract)
  */
 export function useCarbonCreditMinterAddress() {
-  return '0xC3Fd43907aFBCA63298bA076f9ED5C84DEb7BE21' as const;
+  return '0x425ACF3c60A372efC2280119B12175e4ed33a47F' as const;
 }

@@ -60,7 +60,7 @@ contract ModelRegistry is Ownable, Pausable, ReentrancyGuard {
     mapping(uint256 => uint256[]) private _taskPredictions; // taskId => modelIds
     
     // Parameters
-    uint256 public minimumStake = 1000 ether; // 1000 cUSD
+    uint256 public minimumStake = 0.2 ether; // 0.2 cUSD
     uint256 public baseReward = 10 ether;     // 10 cUSD per correct prediction
     uint256 public minimumAccuracy = 5000;    // 50% in basis points
     

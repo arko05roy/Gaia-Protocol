@@ -3,7 +3,7 @@ import { GovernanceDAOABI } from '@/lib/abis';
 
 const GOVERNANCE_DAO_ABI = GovernanceDAOABI as any;
 
-const GOVERNANCE_DAO_ADDRESS = '0x0a6cA23be18a6F7C24413d288dced887fCFC673e' as const;
+const GOVERNANCE_DAO_ADDRESS = '0x35Cc1904aF54DF40900F88c33a72083466c53f82' as const;
 
 export enum ProposalState {
   Active = 0,

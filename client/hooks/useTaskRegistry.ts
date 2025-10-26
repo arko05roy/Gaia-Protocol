@@ -5,7 +5,7 @@ import { TaskRegistryABI as TaskRegistryABIImport } from '@/lib/abis';
 const TASK_REGISTRY_ABI_SRC = (TaskRegistryABIImport as any)?.default || TaskRegistryABIImport || [];
 const TASK_REGISTRY_ABI = ((TASK_REGISTRY_ABI_SRC as any)?.abi ?? TASK_REGISTRY_ABI_SRC) as any;
 
-export const TASK_REGISTRY_ADDRESS = '0x5754C71c2474FE8F2B83C43432Faf0AC94cc24A5' as const;
+export const TASK_REGISTRY_ADDRESS = '0x93502BE3a3B282Ac3d032c0E663bCa7b92263c8C' as const;
 
 export enum TaskStatus {
   Proposed = 0,

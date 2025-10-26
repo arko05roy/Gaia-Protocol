@@ -974,8 +974,8 @@
       ]
     },
     "/Users/arkoroy/Desktop/GaiaProtocol/web3/contracts/PredictionMarketplace.sol": {
-      "lastModificationDate": 1761201255085,
-      "contentHash": "1bfad137d1607386840ac1ec6924e673",
+      "lastModificationDate": 1761371951028,
+      "contentHash": "12f91c78d27e383f9312280e0cd1be86",
       "sourceName": "contracts/PredictionMarketplace.sol",
       "solcConfig": {
         "version": "0.8.28",
@@ -1103,8 +1103,8 @@
       ]
     },
     "/Users/arkoroy/Desktop/GaiaProtocol/web3/contracts/ModelRegistry.sol": {
-      "lastModificationDate": 1761199081161,
-      "contentHash": "83e4545cfcbffd0e10301853170e1758",
+      "lastModificationDate": 1761371952097,
+      "contentHash": "20e4467c9580754afdc74fd1ec61e60b",
       "sourceName": "contracts/ModelRegistry.sol",
       "solcConfig": {
         "version": "0.8.28",
@@ -1146,8 +1146,8 @@
       ]
     },
     "/Users/arkoroy/Desktop/GaiaProtocol/web3/contracts/GovernanceDAO.sol": {
-      "lastModificationDate": 1761199181805,
-      "contentHash": "f48a5e7967f09df301181fd3e1489777",
+      "lastModificationDate": 1761371616433,
+      "contentHash": "c7e53b3b8bb4177db0c05edb9e2ecc92",
       "sourceName": "contracts/GovernanceDAO.sol",
       "solcConfig": {
         "version": "0.8.28",
@@ -1319,8 +1319,8 @@
       ]
     },
     "/Users/arkoroy/Desktop/GaiaProtocol/web3/contracts/DataRegistry.sol": {
-      "lastModificationDate": 1761199411007,
-      "contentHash": "6749b247d5b7f7ea7f2b603736a75507",
+      "lastModificationDate": 1761371953127,
+      "contentHash": "1d3d9056eaa8ae974939af2948cfe06c",
       "sourceName": "contracts/DataRegistry.sol",
       "solcConfig": {
         "version": "0.8.28",

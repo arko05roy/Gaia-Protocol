@@ -60,7 +60,7 @@ contract GovernanceDAO is Ownable, Pausable, ReentrancyGuard {
     
     // Governance parameters
     uint256 public votingPeriod = 3 days;
-    uint256 public proposalBond = 100 ether; // 100 cUSD bond
+    uint256 public proposalBond = 0.2 ether; // 0.2 cUSD bond
     uint256 public quorumPercentageBps = 2000; // 20% quorum
     uint256 public executionDelay = 2 days; // Timelock
     

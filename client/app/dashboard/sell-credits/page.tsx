@@ -18,7 +18,7 @@ interface SellModalData {
   pricePerCredit: bigint
 }
 
-const CARBON_MARKETPLACE_ADDRESS = '0xAFF32cce8D5eCbB1AFD38A87f04A1b8db858eA6D' as const;
+const CARBON_MARKETPLACE_ADDRESS = '0xA1a2D60E93f67592522c2C612896F43E5ed20010' as const;
 
 export default function SellCarbonCreditsPage() {
   const { address } = useAccount()

@@ -11,7 +11,7 @@ import DashboardHeader from "@/components/dashboard/header"
 import { parseEther, formatUnits } from "viem"
 import TaskCard from "./task-card"
 
-const FUNDING_POOL_ADDRESS = '0x89a87B531E37731A77B1E40B6B8B5bCb58819059' as const
+const FUNDING_POOL_ADDRESS = '0x597D9DA0B8E9c68d68FE293B8fB8CB4c00cf1c34' as const
 
 export default function FundingPage() {
   const { address } = useAccount()

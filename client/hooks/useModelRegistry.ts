@@ -3,7 +3,7 @@ import { ModelRegistryABI } from '@/lib/abis';
 
 const MODEL_REGISTRY_ABI = ModelRegistryABI as any;
 
-const MODEL_REGISTRY_ADDRESS = '0xeEc45Fd463EA8137e46170694414703Ebb791119' as const;
+const MODEL_REGISTRY_ADDRESS = '0x88A67A92415e4aA2f5bE9ADE7173438C54f37795' as const;
 
 export interface Model {
   id: bigint;

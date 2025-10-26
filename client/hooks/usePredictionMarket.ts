@@ -4,7 +4,7 @@ import { PredictionMarketABI as PredictionMarketABIImport } from '@/lib/abis';
 const PREDICTION_MARKET_ABI_SRC = (PredictionMarketABIImport as any)?.default || PredictionMarketABIImport || [];
 const PREDICTION_MARKET_ABI = (((PREDICTION_MARKET_ABI_SRC as any)?.abi) ?? PREDICTION_MARKET_ABI_SRC) as any;
 
-export const PREDICTION_MARKET_ADDRESS = '0x8c7Ffc95fcD2b9Dfb48272A0cEb6f54e7CE77b14' as const;
+export const PREDICTION_MARKET_ADDRESS = '0xf450148e4647dC3c175cD9F5871b0af74fDa0774' as const;
 
 export interface Market {
   taskId: bigint;

@@ -65,7 +65,7 @@ contract DataRegistry is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalCostRecorded;
     
     // Data contribution rewards
-    uint256 public dataRewardAmount = 100 ether; // 100 cUSD per verified entry
+    uint256 public dataRewardAmount = 0.2 ether; // 0.2 cUSD per verified entry
     
     // Access control for private data
     mapping(address => bool) public authorizedResearchers;

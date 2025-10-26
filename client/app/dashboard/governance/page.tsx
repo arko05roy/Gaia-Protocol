@@ -93,7 +93,7 @@ export default function GovernancePage() {
   const { cancelProposal, isPending: isCancelling, isSuccess: cancelSuccess } = useCancelProposal()
 
   // Approval hooks
-  const GOVERNANCE_DAO_ADDRESS = "0x0a6cA23be18a6F7C24413d288dced887fCFC673e" as const
+  const GOVERNANCE_DAO_ADDRESS = "0x35Cc1904aF54DF40900F88c33a72083466c53f82" as const
   const CUSD_TOKEN_ADDRESS = "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b" as const
   const { allowance, isLoading: loadingAllowance } = useGetAllowance(
     CUSD_TOKEN_ADDRESS,
