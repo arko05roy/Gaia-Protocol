@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAccount, useWatchContractEvent } from "wagmi"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -74,17 +74,42 @@ export default function PredictionMarket() {
     }
   })
 
-  // Fetch all funded and in-progress tasks (these have prediction markets)
+  // Fetch all tasks that can have prediction markets
+  // Markets can be created for any task status to predict outcomes
+  const { taskIds: proposedTaskIds } = useGetTasksByStatus(TaskStatus.Proposed)
   const { taskIds: fundedTaskIds } = useGetTasksByStatus(TaskStatus.Funded)
   const { taskIds: inProgressTaskIds } = useGetTasksByStatus(TaskStatus.InProgress)
   const { taskIds: underReviewTaskIds } = useGetTasksByStatus(TaskStatus.UnderReview)
+  const { taskIds: verifiedTaskIds } = useGetTasksByStatus(TaskStatus.Verified)
+  const { taskIds: rejectedTaskIds } = useGetTasksByStatus(TaskStatus.Rejected)
   
   const allTaskIds = useMemo(() => {
-    return [...(fundedTaskIds || []), ...(inProgressTaskIds || []), ...(underReviewTaskIds || [])]
-  }, [fundedTaskIds, inProgressTaskIds, underReviewTaskIds])
+    return [
+      ...(proposedTaskIds || []), 
+      ...(fundedTaskIds || []), 
+      ...(inProgressTaskIds || []), 
+      ...(underReviewTaskIds || []), 
+      ...(verifiedTaskIds || []),
+      ...(rejectedTaskIds || [])
+    ]
+  }, [proposedTaskIds, fundedTaskIds, inProgressTaskIds, underReviewTaskIds, verifiedTaskIds, rejectedTaskIds])
 
   // Fetch tasks
   const { tasks = [] } = useGetTasks(allTaskIds.length > 0 ? allTaskIds : undefined)
+  
+  // Debug: Log task IDs and count
+  useEffect(() => {
+    if (allTaskIds.length > 0) {
+      console.log('Prediction Markets - Task IDs:', allTaskIds.map(id => id.toString()))
+      console.log('Prediction Markets - Tasks loaded:', tasks.length)
+    }
+  }, [allTaskIds, tasks])
+  
+  // Sort tasks: existing markets first, then tasks without markets
+  const sortedTasks = useMemo(() => {
+    // Never mutate the source array during render; clone first
+    return [...tasks]
+  }, [tasks])
   
   // Buy shares hook
   const { buyShares, isPending: isBuying, isSuccess: buySuccess } = useBuyShares()
@@ -92,6 +117,33 @@ export default function PredictionMarket() {
   const { fee } = useGetMarketCreationFee()
   const cUSD = useCUSDTokenAddress()
   const { approveToken, isPending: isApproving, isSuccess: isApproveSuccess } = useApproveToken()
+  // Allowance for trading (cUSD -> PredictionMarket)
+  const { allowance: spendAllowance, refetch: refetchSpendAllowance } = useGetAllowance(
+    cUSD,
+    userAddress as `0x${string}` | undefined,
+    PREDICTION_MARKET_ADDRESS
+  )
+
+  // Close modal and reset amount once buy succeeds (guard to run once)
+  const buyClosedRef = useRef(false)
+  useEffect(() => {
+    if (buySuccess && !buyClosedRef.current) {
+      buyClosedRef.current = true
+      setShowBetModal(false)
+      setBetAmount('')
+      setSelectedMarketId(undefined)
+      setBetSide(null)
+      // reset guard after a tick so future buys can close again
+      setTimeout(() => { buyClosedRef.current = false }, 0)
+    }
+  }, [buySuccess])
+
+  // After successful approval anywhere, refetch trading allowance
+  useEffect(() => {
+    if (isApproveSuccess) {
+      refetchSpendAllowance()
+    }
+  }, [isApproveSuccess])
 
   const handlePlaceBet = () => {
     if (!selectedMarketId || !betAmount || !betSide) return
@@ -196,9 +248,23 @@ export default function PredictionMarket() {
       const required = fee || 0n
       const approvedEnough = allowance !== undefined && required !== undefined ? (allowance as bigint) >= (required as bigint) : false
       const now = BigInt(Math.floor(Date.now() / 1000))
-      // Ensure resolutionDeadline is strictly in the future to avoid preflight simulation revert
-      const base = (task.deadline as bigint) > now ? (task.deadline as bigint) : now
-      const deadline = base + 7n * 24n * 60n * 60n
+      
+      // Calculate market resolution deadline
+      // For Proposed tasks: use current time + 30 days (market duration)
+      // For other tasks: use task deadline + 7 days (buffer after task completion)
+      let deadline: bigint
+      const taskDeadline = (task.deadline as bigint) || 0n
+      
+      if (task.status === TaskStatus.Proposed) {
+        // Proposed tasks: market lasts 30 days from creation
+        deadline = now + 30n * 24n * 60n * 60n
+      } else if (taskDeadline > now) {
+        // Other tasks: deadline is task deadline + 7 days
+        deadline = taskDeadline + 7n * 24n * 60n * 60n
+      } else {
+        // Fallback: if task deadline is in past, use 30 days from now
+        deadline = now + 30n * 24n * 60n * 60n
+      }
 
       return (
         <Card className="gaia-card">
@@ -248,16 +314,43 @@ export default function PredictionMarket() {
       )
     }
 
-    if (!market) return null
+    // If market exists but data hasn't loaded yet, show loading state
+    if (!market) {
+      return (
+        <Card className="gaia-card p-8 text-center">
+          <Loader2 className="h-8 w-8 text-muted-foreground mx-auto mb-4 animate-spin" />
+          <p className="text-muted-foreground">Loading market data...</p>
+        </Card>
+      )
+    }
 
-    const yesPercent = yesOdds ? Number(yesOdds) / 100 : 50
-    const noPercent = noOdds ? Number(noOdds) / 100 : 50
+    // Normalize odds so they always sum to 100%
+    let yesPercent = 50
+    let noPercent = 50
+    if (yesOdds !== undefined && noOdds !== undefined) {
+      const y = Number(yesOdds)
+      const n = Number(noOdds)
+      const total = y + n
+      if (total > 0) {
+        yesPercent = (y * 100) / total
+        noPercent = 100 - yesPercent
+      }
+    }
     const volumeFormatted = volume ? formatEther(volume) : "0"
 
-    const deadlineDate = new Date(Number(market.resolutionDeadline) * 1000)
+    // Handle deadline - if invalid or 0, show market creation time + 1 week
+    const deadlineTimestamp = Number(market.resolutionDeadline)
+    const createdAtTimestamp = Number(market.createdAt)
+    const validDeadline = deadlineTimestamp > 0 ? deadlineTimestamp : (createdAtTimestamp + 7 * 24 * 60 * 60)
+    const deadlineDate = new Date(validDeadline * 1000)
     const deadlineStr = deadlineDate.toLocaleDateString()
 
-    const isActive = task.status === TaskStatus.Funded || task.status === TaskStatus.InProgress
+    // Market is active if not resolved and deadline hasn't passed
+    const now = Math.floor(Date.now() / 1000)
+    const isActive = !isResolved && validDeadline > now
+    
+    // Debug logging
+    console.log(`Market ${taskId.toString()}: isResolved=${isResolved}, validDeadline=${validDeadline}, now=${now}, isActive=${isActive}`)
 
     return (
       <Card className="gaia-card">
@@ -291,6 +384,13 @@ export default function PredictionMarket() {
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
                 <span>{deadlineStr}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {isActive ? (
+                  <span className="text-green-600 font-semibold">● Active</span>
+                ) : (
+                  <span className="text-red-600 font-semibold">● Closed</span>
+                )}
               </div>
             </div>
           </div>
@@ -416,17 +516,28 @@ export default function PredictionMarket() {
 
           {/* Markets List */}
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-4">Active Prediction Markets</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Prediction Markets</h2>
             {allTaskIds.length === 0 ? (
               <Card className="gaia-card p-8 text-center">
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No active prediction markets yet</p>
+                <p className="text-muted-foreground">No tasks available for prediction markets</p>
+                <p className="text-sm text-muted-foreground mt-2">Create or fund a task to start predicting outcomes</p>
               </Card>
             ) : (
               <div className="space-y-4">
-                {tasks.map((task) => (
-                  <MarketCard key={task.id} taskId={task.id} task={task} />
-                ))}
+                <div className="text-sm text-muted-foreground mb-2">
+                  Found {allTaskIds.length} eligible task(s), {sortedTasks.length} loaded
+                </div>
+                {sortedTasks.length === 0 ? (
+                  <Card className="gaia-card p-8 text-center">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading tasks...</p>
+                  </Card>
+                ) : (
+                  sortedTasks.map((task) => (
+                    <MarketCard key={task.id} taskId={task.id} task={task} />
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -471,28 +582,63 @@ export default function PredictionMarket() {
               </p>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowBetModal(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handlePlaceBet}
-                disabled={!betAmount || parseFloat(betAmount) <= 0 || isBuying}
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                {isBuying ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Placing...
-                  </>
-                ) : (
-                  "Place Bet"
-                )}
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBetModal(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                {(() => {
+                  try {
+                    const required = betAmount ? parseEther(betAmount) : undefined
+                    const approvedEnough = required !== undefined && spendAllowance !== undefined ? (spendAllowance as bigint) >= required : false
+                    if (!approvedEnough) {
+                      return (
+                        <Button
+                          onClick={() => {
+                            if (!betAmount) return
+                            const amt = parseEther(betAmount)
+                            approveToken(cUSD as `0x${string}`, PREDICTION_MARKET_ADDRESS, amt)
+                          }}
+                          disabled={!userAddress || !betAmount || parseFloat(betAmount) <= 0 || isApproving}
+                          className="flex-1"
+                        >
+                          {isApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                          Approve cUSD
+                        </Button>
+                      )
+                    }
+                    return (
+                      <Button
+                        onClick={handlePlaceBet}
+                        disabled={!betAmount || parseFloat(betAmount) <= 0 || isBuying}
+                        className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                      >
+                        {isBuying ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Placing...
+                          </>
+                        ) : (
+                          <>Place Bet</>
+                        )}
+                      </Button>
+                    )
+                  } catch {
+                    return (
+                      <Button disabled className="flex-1">Enter valid amount</Button>
+                    )
+                  }
+                })()}
+              </div>
+              {betAmount ? (
+                <p className="text-xs text-muted-foreground text-center">
+                  Allowance: {spendAllowance !== undefined ? (Number(spendAllowance) / 1e18).toFixed(4) : '...'} cUSD
+                </p>
+              ) : null}
             </div>
           </div>
         </DialogContent>

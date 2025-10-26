@@ -117,23 +117,28 @@ export default function GovernancePage() {
     )
   }, [totalProposals])
 
-  // Fetch proposal details
-  const proposalQueries = proposalIds.map((id) => ({
-    id,
-    proposal: useGetProposal(id),
-    state: useGetProposalState(id),
-    votingResults: useGetVotingResults(id),
-    quorum: useCheckQuorum(id),
-    timeRemaining: useGetTimeRemaining(id),
-    canExecute: useCanExecute(id),
-  }))
+  // Fetch proposal details for each ID using hooks (called at top level, not in map)
+  // We need to call hooks for a fixed number of proposals to maintain hook order
+  const maxProposals = 10
+  const proposalHooks = Array.from({ length: maxProposals }, (_, i) => {
+    const id = proposalIds[i]
+    return {
+      id,
+      proposal: useGetProposal(id),
+      state: useGetProposalState(id),
+      votingResults: useGetVotingResults(id),
+      quorum: useCheckQuorum(id),
+      timeRemaining: useGetTimeRemaining(id),
+      canExecute: useCanExecute(id),
+    }
+  })
 
-  // Build proposals list
+  // Build proposals list from hook results
   const proposals: ProposalWithState[] = useMemo(() => {
-    return proposalQueries
-      .filter((q) => q.proposal.proposal)
+    return proposalHooks
+      .filter((q) => q.id && q.proposal.proposal)
       .map((q) => ({
-        id: q.id,
+        id: q.id!,
         description: q.proposal.proposal?.description || "",
         proposer: q.proposal.proposal?.proposer || "",
         forVotes: q.votingResults.forVotes || 0n,
@@ -144,7 +149,7 @@ export default function GovernancePage() {
         startBlock: q.proposal.proposal?.startBlock || 0n,
         endBlock: q.proposal.proposal?.endBlock || 0n,
       }))
-  }, [proposalQueries])
+  }, [proposalHooks])
 
   const handleCreateProposal = async () => {
     if (!proposalDescription.trim() || !targetContract.trim() || !callData.trim()) {

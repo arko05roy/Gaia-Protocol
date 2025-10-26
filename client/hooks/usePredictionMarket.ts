@@ -110,7 +110,7 @@ export function useGetMarket(taskId: bigint | undefined) {
   const { data, isLoading, error } = useReadContract({
     address: PREDICTION_MARKET_ADDRESS,
     abi: PREDICTION_MARKET_ABI,
-    functionName: 'markets',
+    functionName: 'getMarket',
     args: taskId ? [taskId] : undefined,
     query: { enabled: !!taskId },
   });
@@ -168,23 +168,21 @@ export function useGetMarketCreationFee() {
  * @returns YES and NO odds as percentages
  */
 export function useGetMarketOdds(taskId: bigint | undefined) {
-  const { data: market, isLoading, error } = useReadContract({
+  const { data, isLoading, error } = useReadContract({
     address: PREDICTION_MARKET_ADDRESS,
     abi: PREDICTION_MARKET_ABI,
-    functionName: 'markets',
+    functionName: 'getOdds',
     args: taskId ? [taskId] : undefined,
     query: { enabled: !!taskId },
   });
 
-  const marketData = market as Market | undefined;
-  const totalPool = marketData ? marketData.yesPool + marketData.noPool : 0n;
-  const yesOdds = totalPool > 0n ? (marketData!.yesPool * 10000n) / totalPool : 5000n;
-  const noOdds = totalPool > 0n ? (marketData!.noPool * 10000n) / totalPool : 5000n;
+  const oddsData = data as [bigint, bigint] | undefined;
+  const yesOdds = oddsData ? oddsData[0] : 5000n;
+  const noOdds = oddsData ? oddsData[1] : 5000n;
 
   return {
     yesOdds,
     noOdds,
-    totalPool,
     isLoading,
     error,
   };
@@ -275,7 +273,7 @@ export function useGetMarketVolume(taskId: bigint | undefined) {
   const { data: market, isLoading, error } = useReadContract({
     address: PREDICTION_MARKET_ADDRESS,
     abi: PREDICTION_MARKET_ABI,
-    functionName: 'markets',
+    functionName: 'getMarket',
     args: taskId ? [taskId] : undefined,
     query: { enabled: !!taskId },
   });
