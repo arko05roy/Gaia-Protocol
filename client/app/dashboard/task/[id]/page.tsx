@@ -178,7 +178,7 @@ export default function TaskDetail() {
                 <DollarSign className="text-primary" size={24} />
                 <div>
                   <p className="text-sm text-muted-foreground">Estimated Cost</p>
-                  <p className="text-xl font-bold text-foreground">{formatUnits(task.estimatedCost, 18)} cUSD</p>
+                  <p className="text-2xl font-bold text-foreground">{task?.estimatedCost ? formatUnits(task.estimatedCost, 18) : '0'} GAIA</p>
                 </div>
               </div>
             </Card>
@@ -207,8 +207,8 @@ export default function TaskDetail() {
               <div className="flex items-center gap-3">
                 <Users className="text-primary" size={24} />
                 <div>
-                  <p className="text-sm text-muted-foreground">Funders</p>
-                  <p className="text-xl font-bold text-foreground">{fundersData.length}</p>
+                  <p className="text-sm text-muted-foreground">Funded</p>
+                  <p className="text-lg font-bold text-foreground">{funded ? formatUnits(funded, 18) : '0'} GAIA</p>
                 </div>
               </div>
             </Card>

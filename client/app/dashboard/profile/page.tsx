@@ -379,7 +379,7 @@ export default function Profile() {
                         </div>
                         <div>
                           <p className="font-medium text-foreground">{transaction.description}</p>
-                          <p className="text-sm text-muted-foreground">{formatDate(transaction.timestamp)}</p>
+                          <p className="text-sm text-muted-foreground">GAIA Balance</p>
                         </div>
                       </div>
                       <div className="text-right">

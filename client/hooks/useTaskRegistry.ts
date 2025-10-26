@@ -41,7 +41,7 @@ export function useCreateTask() {
   const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess, error: receiptError } = useWaitForTransactionReceipt({ hash });
 
-  const createTask = (
+  const createTask = async (
     description: string,
     estimatedCost: bigint,
     expectedCO2: bigint,
@@ -76,12 +76,15 @@ export function useCreateTask() {
         contractAddress: TASK_REGISTRY_ADDRESS,
       });
 
-      writeContract({
+      const writeParams: any = {
         address: TASK_REGISTRY_ADDRESS as `0x${string}`,
         abi: TASK_REGISTRY_ABI,
         functionName: 'createTask',
         args: [description, estimatedCost, expectedCO2, location, deadline, proofRequirements, ipfsHash],
-      });
+        gas: 5000000n,
+      };
+
+      writeContract(writeParams);
     } catch (err) {
       console.error('Error in createTask:', err);
       throw err;

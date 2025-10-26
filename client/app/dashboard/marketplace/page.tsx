@@ -25,7 +25,7 @@ interface BuyModalData {
   buyAmount: string
 }
 
-const CARBON_MARKETPLACE_ADDRESS = '0xA1a2D60E93f67592522c2C612896F43E5ed20010' as const;
+const CARBON_MARKETPLACE_ADDRESS = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853' as const;
 
 export default function DataMarketplacePage() {
   const { address } = useAccount()
@@ -225,127 +225,162 @@ export default function DataMarketplacePage() {
                         </span>
                       </div>
 
-                      <p className="text-sm text-foreground/70">Carbon credits available for purchase</p>
-                    </div>
-
-                    <div className="space-y-3 pt-4 border-t border-border">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-foreground/60">Price per Credit</span>
-                        <span className="font-bold">{pricePerCredit.toFixed(2)} cUSD</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-foreground/60">Total Price</span>
-                        <span className="font-bold text-lg text-primary">{totalPrice.toFixed(2)} cUSD</span>
-                      </div>
-
-                      <Button
-                        onClick={() => handleOpenBuyModal(order)}
-                        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                      >
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        Buy Credits
-                      </Button>
-                    </div>
-                  </Card>
-                )
-              })}
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Buy Modal */}
-      <AnimatePresence>
-        {showBuyModal && selectedModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setShowBuyModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full p-6 space-y-6"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Buy Carbon Credits</h2>
-                <button
-                  onClick={() => setShowBuyModal(false)}
-                  className="text-foreground/60 hover:text-foreground transition-colors"
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-foreground/60">Loading marketplace orders...</p>
+          </div>
+        </div>
+      ) : activeOrders.length === 0 ? (
+        <Card className="p-8 bg-card border border-border text-center">
+          <p className="text-foreground/60">No active orders available in the marketplace</p>
+        </Card>
+      ) : (
+        <>
+          {/* Market Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-4 bg-card border border-border">
+              <p className="text-sm text-foreground/60">Total Market Volume</p>
+              <p className="text-2xl font-bold text-primary">{totalVolume ? formatUnits(totalVolume, 0) : "0"} CO₂</p>
+            </Card>
+            <Card className="p-4 bg-card border border-border">
+              <p className="text-sm text-foreground/60">Active Orders</p>
+              <p className="text-2xl font-bold text-primary">{activeOrders.length}</p>
+            </Card>
+          </div>
+
+          {/* Orders Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeOrders.map((order) => {
+              const amount = Number(formatUnits(order.amount, 0))
+              const pricePerCredit = Number(formatUnits(order.pricePerCredit, 18))
+              const totalPrice = amount * pricePerCredit
+              return (
+                <Card
+                  key={Number(order.orderId)}
+                  className="p-6 bg-card border border-border hover:border-primary/50 transition-colors flex flex-col"
                 >
-                  <X className="h-5 w-5" />
-                </button>
+                  <div className="flex-1 space-y-3 mb-4">
+                    <div>
+                      <h3 className="font-bold text-lg">Order #{Number(order.orderId)}</h3>
+                      <p className="text-xs text-primary font-semibold mt-1">Seller: {order.seller.slice(0, 10)}...</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">
+                        {amount.toLocaleString()} CO₂
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-foreground/70">Carbon credits available for purchase</p>
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-muted-foreground mb-2">Price per credit (GAIA)</p>
+                      <span className="font-bold">{pricePerCredit.toFixed(2)} GAIA</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-foreground/60">Total Price</span>
+                      <span className="font-bold text-lg text-primary">{totalPrice.toFixed(2)} GAIA</span>
+                    </div>
+
+                    <Button
+                      onClick={() => handleOpenBuyModal(order)}
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Buy Credits
+                    </Button>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+
+    {/* Buy Modal */}
+    <AnimatePresence>
+      {showBuyModal && selectedModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowBuyModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full p-6 space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Buy Carbon Credits</h2>
+              <button
+                onClick={() => setShowBuyModal(false)}
+                className="text-foreground/60 hover:text-foreground transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-foreground/60 mb-2">Order Details</p>
+                <div className="space-y-1">
+                  <p className="text-sm"><span className="font-semibold">Order ID:</span> #{selectedModal.order.orderId.toString()}</p>
+                  <p className="text-sm"><span className="font-semibold">Token ID:</span> #{selectedModal.order.tokenId.toString()}</p>
+                  <p className="text-sm"><span className="font-semibold">Seller:</span> {selectedModal.order.seller.slice(0, 10)}...{selectedModal.order.seller.slice(-8)}</p>
+                  <p className="text-sm"><span className="font-semibold">Available:</span> {formatUnits(selectedModal.order.amount, 0)} CO₂</p>
+                  <p className="text-sm"><span className="font-semibold">Price:</span> {formatUnits(selectedModal.order.pricePerCredit, 18)} GAIA/credit</p>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-foreground/60 mb-2">Order Details</p>
-                  <div className="space-y-1">
-                    <p className="text-sm"><span className="font-semibold">Order ID:</span> #{selectedModal.order.orderId.toString()}</p>
-                    <p className="text-sm"><span className="font-semibold">Token ID:</span> #{selectedModal.order.tokenId.toString()}</p>
-                    <p className="text-sm"><span className="font-semibold">Seller:</span> {selectedModal.order.seller.slice(0, 10)}...{selectedModal.order.seller.slice(-8)}</p>
-                    <p className="text-sm"><span className="font-semibold">Available:</span> {formatUnits(selectedModal.order.amount, 0)} CO₂</p>
-                    <p className="text-sm"><span className="font-semibold">Price:</span> {formatUnits(selectedModal.order.pricePerCredit, 18)} cUSD/credit</p>
-                  </div>
+              {error && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
                 </div>
+              )}
 
-                {error && (
-                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {isCheckingAllowance && (
-                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm flex gap-2">
-                    <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
-                    <span>Checking allowance...</span>
-                  </div>
-                )}
-
-                {isApproving && (
-                  <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm flex gap-2">
-                    <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
-                    <span>Approving cUSD spend...</span>
-                  </div>
-                )}
-
-                {approvalSuccess && needsApproval && (
-                  <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex gap-2">
-                    <Check className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <span>✓ Token approved! Proceeding with purchase...</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-sm text-foreground/60 mb-2 block">Amount to Buy (CO₂ credits)</label>
-                  <input
-                    type="number"
-                    value={buyAmount}
-                    onChange={(e) => setBuyAmount(e.target.value)}
-                    max={formatUnits(selectedModal.order.amount, 0)}
-                    step="1"
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    disabled={isBuying || isApproving || isCheckingAllowance}
-                  />
-                  <p className="text-xs text-foreground/60 mt-1">
-                    Max: {formatUnits(selectedModal.order.amount, 0)} CO₂
-                  </p>
+              {isCheckingAllowance && (
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm flex gap-2">
+                  <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
+                  <span>Checking allowance...</span>
                 </div>
+              )}
 
-                <div className="bg-primary/10 p-4 rounded-lg">
-                  <p className="text-sm text-foreground/60 mb-1">Total Cost</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {((Number.parseFloat(buyAmount || "0") * Number(formatUnits(selectedModal.order.pricePerCredit, 18)))).toFixed(2)} cUSD
-                  </p>
+              {isApproving && (
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm flex gap-2">
+                  <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
+                  <span>Approving GAIA spend...</span>
                 </div>
-              </div>
+              )}
 
-              <div className="flex gap-3">
+              {approvalSuccess && needsApproval && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex gap-2">
+                  <Check className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>✓ Token approved! Proceeding with purchase...</span>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm text-foreground/60 mb-2 block">Amount to Buy (CO₂ credits)</label>
+                <input
+                  type="number"
+                  value={buyAmount}
+                  onChange={(e) => setBuyAmount(e.target.value)}
+                  max={formatUnits(selectedModal.order.amount, 0)}
+                  step="1"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 <Button
                   onClick={() => setShowBuyModal(false)}
                   variant="outline"

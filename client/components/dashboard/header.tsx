@@ -25,7 +25,7 @@ export default function DashboardHeader() {
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
           <DollarSign className="h-5 w-5 text-primary" />
           <div className="flex flex-col">
-            <span className="text-xs text-foreground/60 font-medium">cUSD Balance</span>
+            <span className="text-xs text-foreground/60 font-medium">GAIA Balance</span>
             <div className="flex items-center gap-2">
               {isLoading ? (
                 <Loader className="h-4 w-4 animate-spin text-primary" />

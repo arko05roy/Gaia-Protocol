@@ -85,7 +85,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
         ipfsHash: formData.ipfsHash,
       })
 
-      createTask(
+      await createTask(
         formData.description,
         estimatedCost,
         expectedCO2,
@@ -195,7 +195,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
 
             {/* Funding Goal */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Funding Goal (cUSD)</label>
+              <label className="block text-sm font-semibold mb-2">Funding Goal (GAIA)</label>
               <Input
                 type="number"
                 name="fundingGoal"

@@ -162,12 +162,14 @@ export default function PredictionMarket() {
   }
 
   // Reset modal after successful transaction
-  if (buySuccess || claimSuccess) {
-    setShowBetModal(false)
-    setBetAmount("")
-    setBetSide(null)
-    setSelectedMarketId(undefined)
-  }
+  useEffect(() => {
+    if (buySuccess || claimSuccess) {
+      setShowBetModal(false)
+      setBetAmount("")
+      setBetSide(null)
+      setSelectedMarketId(undefined)
+    }
+  }, [buySuccess, claimSuccess])
 
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
@@ -292,7 +294,7 @@ export default function PredictionMarket() {
                 }}
               >
                 {isApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Approve cUSD ({fee ? `${formatEther(fee)} cUSD` : '...'} )
+                Approve GAIA ({fee ? `${formatEther(fee)} GAIA` : '...'} )
               </Button>
             ) : (
               <Button
@@ -379,7 +381,7 @@ export default function PredictionMarket() {
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <DollarSign className="h-4 w-4" />
-                <span>{volumeFormatted} cUSD</span>
+                <span>{volumeFormatted} GAIA</span>
               </div>
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
@@ -484,7 +486,7 @@ export default function PredictionMarket() {
                 <div>
                   <p className="text-muted-foreground text-sm mb-1">Total Volume</p>
                   <p className="text-3xl font-bold text-primary">
-                    {allTaskIds.length > 0 ? "Loading..." : "0 cUSD"}
+                    {allTaskIds.length > 0 ? "Loading..." : "0 GAIA"}
                   </p>
                 </div>
                 <DollarSign className="text-primary" size={32} />
@@ -564,7 +566,7 @@ export default function PredictionMarket() {
             
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Amount (cUSD)
+                Amount (GAIA)
               </label>
               <Input
                 type="number"
@@ -578,7 +580,7 @@ export default function PredictionMarket() {
 
             <div className="bg-muted p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                {betAmount ? `You will spend ${betAmount} cUSD` : "Enter an amount"}
+                {betAmount ? `You will spend ${betAmount} GAIA` : "Enter an amount"}
               </p>
             </div>
 
@@ -607,7 +609,7 @@ export default function PredictionMarket() {
                           className="flex-1"
                         >
                           {isApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                          Approve cUSD
+                          Approve GAIA
                         </Button>
                       )
                     }
@@ -636,7 +638,7 @@ export default function PredictionMarket() {
               </div>
               {betAmount ? (
                 <p className="text-xs text-muted-foreground text-center">
-                  Allowance: {spendAllowance !== undefined ? (Number(spendAllowance) / 1e18).toFixed(4) : '...'} cUSD
+                  Allowance: {spendAllowance !== undefined ? (Number(spendAllowance) / 1e18).toFixed(4) : '...'} GAIA
                 </p>
               ) : null}
             </div>

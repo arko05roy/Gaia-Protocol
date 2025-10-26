@@ -18,7 +18,7 @@ interface SellModalData {
   pricePerCredit: bigint
 }
 
-const CARBON_MARKETPLACE_ADDRESS = '0xA1a2D60E93f67592522c2C612896F43E5ed20010' as const;
+const CARBON_MARKETPLACE_ADDRESS = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853' as const;
 
 export default function SellCarbonCreditsPage() {
   const { address } = useAccount()
@@ -392,7 +392,7 @@ export default function SellCarbonCreditsPage() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-foreground/60 mb-2 block">Price per Credit (cUSD)</label>
+                  <label className="text-sm text-foreground/60 mb-2 block">Price per credit (GAIA)</label>
                   <input
                     type="number"
                     value={pricePerCredit}
@@ -408,7 +408,8 @@ export default function SellCarbonCreditsPage() {
                 <div className="bg-primary/10 p-4 rounded-lg">
                   <p className="text-sm text-foreground/60 mb-1">Estimated Revenue</p>
                   <p className="text-2xl font-bold text-primary">
-                    {(Number.parseFloat(sellAmount || "0") * Number.parseFloat(pricePerCredit || "0")).toFixed(2)} cUSD
+                    <span className="text-lg font-bold text-primary min-w-fit">GAIA</span>
+                    {(Number.parseFloat(sellAmount || "0") * Number.parseFloat(pricePerCredit || "0")).toFixed(2)}
                   </p>
                 </div>
               </div>

@@ -60,7 +60,7 @@ interface ProcessedModel {
 export default function ModelRegistry() {
   const { address: userAddress } = useAccount()
   const cusdTokenAddress = useCUSDTokenAddress()
-  const MODEL_REGISTRY_ADDRESS = '0x88A67A92415e4aA2f5bE9ADE7173438C54f37795' as const
+  const MODEL_REGISTRY_ADDRESS = '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e' as const
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
@@ -619,7 +619,8 @@ export default function ModelRegistry() {
                 <label className="text-sm font-medium text-muted-foreground mb-2">Performance Metrics</label>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-muted p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-primary">{(selectedModel.accuracy * 100).toFixed(1)}%</div>
+                    <span className="text-lg font-bold text-primary min-w-fit">GAIA</span>
+                    {(selectedModel.accuracy * 100).toFixed(1)}%
                     <div className="text-sm text-muted-foreground">Accuracy</div>
                   </div>
                   <div className="bg-muted p-3 rounded-lg text-center">
@@ -636,7 +637,7 @@ export default function ModelRegistry() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2">Total Rewards Earned</label>
                 <p className="text-foreground font-medium text-primary">
-                  {(Number(selectedModel.totalRewardsEarned) / 1e18).toLocaleString()} cUSD
+                  {(Number(selectedModel.totalRewardsEarned) / 1e18).toLocaleString()} GAIA
                 </p>
               </div>
 

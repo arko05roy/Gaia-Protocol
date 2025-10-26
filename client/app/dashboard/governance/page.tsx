@@ -93,8 +93,8 @@ export default function GovernancePage() {
   const { cancelProposal, isPending: isCancelling, isSuccess: cancelSuccess } = useCancelProposal()
 
   // Approval hooks
-  const GOVERNANCE_DAO_ADDRESS = "0x35Cc1904aF54DF40900F88c33a72083466c53f82" as const
-  const CUSD_TOKEN_ADDRESS = "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b" as const
+  const GOVERNANCE_DAO_ADDRESS = "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318" as const
+  const CUSD_TOKEN_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3" as const
   const { allowance, isLoading: loadingAllowance } = useGetAllowance(
     CUSD_TOKEN_ADDRESS,
     address,
@@ -378,17 +378,6 @@ export default function GovernancePage() {
 
       {/* Create Proposal Modal */}
       <AnimatePresence>
-        {showCreateModal && (
-          <CreateProposalModal
-            onClose={() => {
-              setShowCreateModal(false)
-              setError(null)
-              setApprovalStep("idle")
-            }}
-            onSubmit={handleCreateProposal}
-            description={proposalDescription}
-            setDescription={setProposalDescription}
-            targetContract={targetContract}
             setTargetContract={setTargetContract}
             callData={callData}
             setCallData={setCallData}
