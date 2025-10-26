@@ -17,14 +17,14 @@ async function main() {
   // Get cUSD contract
   const cUSD = await hre.ethers.getContractAt("MockERC20", cUSDAddress);
   
-  // Mint 10,000 cUSD
-  const mintAmount = hre.ethers.parseUnits("10000", 18);
+  // Mint 1,000,000 cUSD
+  const mintAmount = hre.ethers.parseUnits("1000000", 18);
   const tx = await cUSD.mint(yourAddress, mintAmount);
   await tx.wait();
   
   // Check balance
   const balance = await cUSD.balanceOf(yourAddress);
-  console.log("✓ Minted! Your cUSD balance:", hre.ethers.formatUnits(balance, 18), "cUSD");
+  console.log("✓ Minted! Your GAIA balance:", hre.ethers.formatUnits(balance, 18), "cUSD");
 }
 
 main()
