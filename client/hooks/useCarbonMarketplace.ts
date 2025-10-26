@@ -3,7 +3,7 @@ import { CarbonMarketplaceABI } from '@/lib/abis';
 
 const CARBON_MARKETPLACE_ABI = CarbonMarketplaceABI as any;
 
-const CARBON_MARKETPLACE_ADDRESS = '0xA1a2D60E93f67592522c2C612896F43E5ed20010' as const;
+export const CARBON_MARKETPLACE_ADDRESS = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853' as const;
 
 export interface Order {
   orderId: bigint;

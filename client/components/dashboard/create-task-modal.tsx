@@ -15,7 +15,7 @@ interface CreateTaskModalProps {
 }
 
 export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
-  const { createTask, isPending, isSuccess, hash } = useCreateTask()
+  const { createTask, isPending, isSuccess, hash, error: hookError } = useCreateTask()
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -29,6 +29,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
   })
 
   const [error, setError] = useState<string | null>(null)
+  const displayError = error || (hookError ? String(hookError) : null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -41,9 +42,48 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
     setError(null)
 
     try {
-      const estimatedCost = parseEther(formData.fundingGoal || "0")
+      // Validate all required fields
+      if (!formData.description.trim()) {
+        throw new Error("Description is required")
+      }
+      if (!formData.location.trim()) {
+        throw new Error("Location is required")
+      }
+      if (!formData.proofRequirements.trim()) {
+        throw new Error("Proof requirements are required")
+      }
+      if (!formData.fundingGoal || Number(formData.fundingGoal) <= 0) {
+        throw new Error("Funding goal must be greater than 0")
+      }
+      if (!formData.coTarget || Number(formData.coTarget) <= 0) {
+        throw new Error("CO₂ target must be greater than 0")
+      }
+      if (!formData.deadline) {
+        throw new Error("Deadline is required")
+      }
+
+      const deadlineDate = new Date(formData.deadline)
+      if (isNaN(deadlineDate.getTime())) {
+        throw new Error("Invalid deadline date format")
+      }
+      if (deadlineDate.getTime() <= Date.now()) {
+        throw new Error("Deadline must be in the future")
+      }
+
+      const estimatedCost = parseEther(formData.fundingGoal)
       const expectedCO2 = BigInt(Math.floor(Number(formData.coTarget) * 1e18))
-      const deadline = BigInt(Math.floor(new Date(formData.deadline).getTime() / 1000))
+      const deadline = BigInt(Math.floor(deadlineDate.getTime() / 1000))
+
+      console.log("Form validation passed. Creating task with:")
+      console.log({
+        description: formData.description,
+        estimatedCost: estimatedCost.toString(),
+        expectedCO2: expectedCO2.toString(),
+        location: formData.location,
+        deadline: deadline.toString(),
+        proofRequirements: formData.proofRequirements,
+        ipfsHash: formData.ipfsHash,
+      })
 
       createTask(
         formData.description,
@@ -55,7 +95,9 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
         formData.ipfsHash
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create task")
+      const errorMsg = err instanceof Error ? err.message : "Failed to create task"
+      console.error("Form submission error:", errorMsg)
+      setError(errorMsg)
     }
   }
 
@@ -221,9 +263,10 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
             </div>
 
             {/* Error Message */}
-            {error && (
+            {displayError && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                {error}
+                <p className="font-semibold mb-1">Error:</p>
+                <p>{displayError}</p>
               </div>
             )}
 

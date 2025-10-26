@@ -1,0 +1,43 @@
+# Environment files
+.envrc
+.env
+
+# Wallet files
+gaia-data/*.json
+gaia-data/accounts.txt
+
+# Chain data
+gaia-data/geth-data/
+gaia-data/*.log
+gaia-data/*.pid
+gaia-data/jwt-secret.txt
+
+# OP Stack source
+optimism/
+op-geth/
+
+# Generated configs
+gaia-config/genesis-l2.json
+gaia-config/genesis-l2-original.json
+gaia-config/rollup.json
+gaia-config/deploy-config.json
+gaia-config/contract-addresses.json
+gaia-config/l2-contract-addresses.json
+
+# Node modules
+node_modules/
+
+# Build artifacts
+build/
+dist/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -3,8 +3,8 @@ import { OZ_IERC20ABI as OZ_IERC20ABIImport } from '@/lib/abis';
 
 const ERC20_ABI = ((OZ_IERC20ABIImport as any)?.default || OZ_IERC20ABIImport || []) as any;
 
-// Celo testnet cUSD token address
-const CUSD_TOKEN_ADDRESS = '0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b' as const;
+// GaiaL3 cUSD token address
+const CUSD_TOKEN_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const;
 
 /**
  * Hook to check ERC20 token allowance

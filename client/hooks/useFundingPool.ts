@@ -3,7 +3,7 @@ import { FundingPoolABI } from '@/lib/abis';
 
 const FUNDING_POOL_ABI = FundingPoolABI as any;
 
-const FUNDING_POOL_ADDRESS = '0x597D9DA0B8E9c68d68FE293B8fB8CB4c00cf1c34' as const;
+export const FUNDING_POOL_ADDRESS = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const; // GaiaL3
 
 export interface Pool {
   totalFunded: bigint;

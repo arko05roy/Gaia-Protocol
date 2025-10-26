@@ -1,0 +1,10 @@
+[dotenv@17.2.3] injecting env (1) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+========================================
+Deploying Gaia Protocol to L2
+========================================
+
+Deploying with account: 0x89a26a33747b293430D4269A59525d5D0D5BbE65
+Account balance: Unable to fetch (L2 node limitation)
+
+1. Deploying cUSD Token...

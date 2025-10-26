@@ -5,7 +5,7 @@ import { TaskRegistryABI as TaskRegistryABIImport } from '@/lib/abis';
 const TASK_REGISTRY_ABI_SRC = (TaskRegistryABIImport as any)?.default || TaskRegistryABIImport || [];
 const TASK_REGISTRY_ABI = ((TASK_REGISTRY_ABI_SRC as any)?.abi ?? TASK_REGISTRY_ABI_SRC) as any;
 
-export const TASK_REGISTRY_ADDRESS = '0x93502BE3a3B282Ac3d032c0E663bCa7b92263c8C' as const;
+export const TASK_REGISTRY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as const;
 
 export enum TaskStatus {
   Proposed = 0,
@@ -38,8 +38,8 @@ export interface Task {
  * @returns Object with createTask function and transaction state
  */
 export function useCreateTask() {
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess, error: receiptError } = useWaitForTransactionReceipt({ hash });
 
   const createTask = (
     description: string,
@@ -50,15 +50,50 @@ export function useCreateTask() {
     proofRequirements: string,
     ipfsHash: string
   ) => {
-    writeContract({
-      address: TASK_REGISTRY_ADDRESS,
-      abi: TASK_REGISTRY_ABI,
-      functionName: 'createTask',
-      args: [description, estimatedCost, expectedCO2, location, deadline, proofRequirements, ipfsHash],
-    });
+    try {
+      // Validate inputs
+      if (!description || !location || !proofRequirements) {
+        throw new Error('Description, location, and proof requirements are required');
+      }
+      if (estimatedCost <= 0n) {
+        throw new Error('Estimated cost must be greater than 0');
+      }
+      if (expectedCO2 <= 0n) {
+        throw new Error('Expected CO2 must be greater than 0');
+      }
+      if (deadline <= BigInt(Math.floor(Date.now() / 1000))) {
+        throw new Error('Deadline must be in the future');
+      }
+
+      console.log('Creating task with params:', {
+        description,
+        estimatedCost: estimatedCost.toString(),
+        expectedCO2: expectedCO2.toString(),
+        location,
+        deadline: deadline.toString(),
+        proofRequirements,
+        ipfsHash,
+        contractAddress: TASK_REGISTRY_ADDRESS,
+      });
+
+      writeContract({
+        address: TASK_REGISTRY_ADDRESS as `0x${string}`,
+        abi: TASK_REGISTRY_ABI,
+        functionName: 'createTask',
+        args: [description, estimatedCost, expectedCO2, location, deadline, proofRequirements, ipfsHash],
+      });
+    } catch (err) {
+      console.error('Error in createTask:', err);
+      throw err;
+    }
   };
 
-  return { createTask, hash, isPending, isConfirming, isSuccess };
+  const error = writeError || receiptError;
+  if (error) {
+    console.error('Transaction error:', error);
+  }
+
+  return { createTask, hash, isPending, isConfirming, isSuccess, error };
 }
 
 /**

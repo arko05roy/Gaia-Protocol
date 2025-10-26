@@ -23,6 +23,17 @@ module.exports = {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 44787,
     },
+    gaiaL2: {
+      url: "http://localhost:8546",
+      accounts: {
+        mnemonic: "test test test test test test test test test test test junk",
+        path: "m/44'/60'/0'/0",
+        initialIndex: 0,
+        count: 20
+      },
+      chainId: 424242,
+      gasPrice: 1000000000,
+    },
   },
   etherscan: {
     apiKey: {

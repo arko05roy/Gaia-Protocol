@@ -1,0 +1,30 @@
+[dotenv@17.2.3] injecting env (1) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+========================================
+Deploying Gaia Protocol to L2 (Fast Mode)
+========================================
+
+Deploying with account: 0x89a26a33747b293430D4269A59525d5D0D5BbE65
+1. Deploying cUSD Token...
+   cUSD deployed to: 0x07a282AB2656f636607FFA613D8D35921bb16d66
+
+2. Deploying Treasury...
+   Treasury deployed to: 0xe51e0ec9E59832D029ad70c7cF8d0C547D111Dfe
+
+3. Deploying TaskRegistry...
+   TaskRegistry deployed to: 0x6264BA6076D26b73b486Bf2C3F2Dfdb0DED7D030
+
+4. Deploying FundingPool...
+   FundingPool deployed to: 0x0FE6c9eE3B18746509232a08830370F177e94f41
+
+5. Deploying CollateralManager...
+   CollateralManager deployed to: 0x75b7f3b9317FeB1135f82689944B4Ab4cEF7274F
+
+6. Deploying VerificationManager...
+   VerificationManager deployed to: 0x67E415e71D6aE0bA00bD33F8eF4eCA0583376fab
+
+7. Deploying CarbonCreditMinter...
+Error: incorrect number of arguments to constructor
+    at ContractFactory.getDeployTransaction (/Users/arkoroy/Desktop/GaiaProtocol/web3/node_modules/ethers/src.ts/contract/factory.ts:87:19)
+    at ContractFactory.deploy (/Users/arkoroy/Desktop/GaiaProtocol/web3/node_modules/ethers/src.ts/contract/factory.ts:105:31)
+    at main (/Users/arkoroy/Desktop/GaiaProtocol/web3/scripts/deploy-l2-fast.js:67:55)
