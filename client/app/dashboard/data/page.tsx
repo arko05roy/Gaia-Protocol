@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,15 +18,20 @@ import {
   Shield,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react"
 import {
   useGetAllPublicEntries,
   useGetDataEntry,
   useGetDatasetStats,
   useGetStatsByProjectType,
+  useCreateDataEntry,
   type DataEntry
 } from "@/hooks"
+import { useAccount } from "wagmi"
+import { AnimatePresence, motion } from "framer-motion"
+import { parseEther } from "viem"
 
 const categories = ["All", "Mangrove Restoration", "Solar Installation", "Renewable Energy", "Forest Conservation"]
 
@@ -50,10 +55,20 @@ interface ProcessedDataset {
 }
 
 export default function DataRegistry() {
+  const { address } = useAccount()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [selectedDataset, setSelectedDataset] = useState<ProcessedDataset | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadForm, setUploadForm] = useState({
+    taskId: "",
+    ipfsHash: "",
+  })
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+
+  const { createDataEntry, isPending: isCreating, isSuccess: createSuccess } = useCreateDataEntry()
 
   // Fetch on-chain data
   const { taskIds: publicEntryIds, isLoading: isLoadingEntries } = useGetAllPublicEntries()
@@ -119,6 +134,38 @@ export default function DataRegistry() {
     setShowDetailsModal(true)
   }
 
+  const handleUploadDataset = () => {
+    if (!address) {
+      setUploadError("Wallet not connected")
+      return
+    }
+
+    if (!uploadForm.taskId || !uploadForm.ipfsHash) {
+      setUploadError("Please fill in all required fields")
+      return
+    }
+
+    try {
+      setUploadError(null)
+      const taskId = BigInt(uploadForm.taskId)
+      createDataEntry(taskId, uploadForm.ipfsHash)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to upload dataset")
+    }
+  }
+
+  useEffect(() => {
+    if (createSuccess) {
+      setUploadSuccess(true)
+      setShowUploadModal(false)
+      setUploadForm({
+        taskId: "",
+        ipfsHash: "",
+      })
+      setTimeout(() => setUploadSuccess(false), 3000)
+    }
+  }, [createSuccess])
+
   const isLoading = isLoadingEntries || isLoadingStats || isLoadingDataEntries
 
   return (
@@ -131,11 +178,29 @@ export default function DataRegistry() {
               <h1 className="text-3xl font-bold text-foreground">Data Registry</h1>
               <p className="text-muted-foreground">Explore and contribute to environmental datasets</p>
             </div>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+            <Button 
+              onClick={() => setShowUploadModal(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+            >
               <Upload className="h-4 w-4" />
               Upload Dataset
             </Button>
           </div>
+
+          {/* Success Message */}
+          <AnimatePresence>
+            {uploadSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3"
+              >
+                <CheckCircle className="text-green-500" size={20} />
+                <p className="text-green-700">Dataset uploaded successfully!</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -398,6 +463,96 @@ export default function DataRegistry() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Upload Dataset Modal */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowUploadModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-lg p-6 max-w-md w-full space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Upload Dataset</h2>
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-foreground/60 hover:text-foreground transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Task ID</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 1"
+                    value={uploadForm.taskId}
+                    onChange={(e) => setUploadForm({...uploadForm, taskId: e.target.value})}
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">ID of the verified task to update</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">IPFS Hash</label>
+                  <Input
+                    placeholder="QmXxxx..."
+                    value={uploadForm.ipfsHash}
+                    onChange={(e) => setUploadForm({...uploadForm, ipfsHash: e.target.value})}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">IPFS hash of additional dataset files</p>
+                </div>
+
+                {uploadError && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowUploadModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isCreating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUploadDataset}
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

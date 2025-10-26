@@ -366,3 +366,26 @@ export function useIsAuthorizedResearcher(researcher: string | undefined) {
     error,
   };
 }
+
+/**
+ * Hook to update data hash for an existing entry
+ * @returns Object with updateDataHash function and transaction state
+ */
+export function useCreateDataEntry() {
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const createDataEntry = (
+    taskId: bigint,
+    newIpfsHash: string
+  ) => {
+    writeContract({
+      address: DATA_REGISTRY_ADDRESS,
+      abi: DATA_REGISTRY_ABI,
+      functionName: 'updateDataHash',
+      args: [taskId, newIpfsHash],
+    });
+  };
+
+  return { createDataEntry, hash, isPending, isConfirming, isSuccess };
+}

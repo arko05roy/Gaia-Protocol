@@ -80,17 +80,19 @@ export {
 
 // Verification Manager Hooks
 export {
+  useInitiateVerification,
+  useAddValidator,
   useSubmitValidatorVote,
   useIsValidator,
   useGetValidatorReputation,
   useGetRequiredValidators,
   useGetConsensusThreshold,
   useGetVerificationPeriod,
-  useGetValidatorReward,
   useGetVerificationStatus,
   useGetValidatorVote,
   useGetTaskValidators,
   useGetAllValidators,
+  useGetVerificationManagerOwner,
   type Vote,
 } from './useVerificationManager';
 
@@ -128,6 +130,7 @@ export {
   useGetDatasetStats,
   useGetStatsByProjectType,
   useIsAuthorizedResearcher,
+  useCreateDataEntry,
   type DataEntry,
   type DatasetStats,
   type ProjectTypeStats,

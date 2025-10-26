@@ -21,7 +21,8 @@ import {
   Brain,
   PieChart,
   FileText,
-  BarChart
+  BarChart,
+  Vote
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -34,7 +35,8 @@ const menuItems = [
   { icon: Coins, label: "Sell Carbon Credits", href: "/dashboard/sell-credits" },
   { icon: Database, label: "Data Marketplace", href: "/dashboard/marketplace" },
   { icon: Wallet, label: "My Carbon Assets", href: "/dashboard/assets" },
-   { icon: Target, label: "Prediction Market", href: "/dashboard/predictions" },
+  { icon: Target, label: "Prediction Market", href: "/dashboard/predictions" },
+  { icon: Vote, label: "Governance", href: "/dashboard/governance" },
   { icon: Database, label: "Data Registry", href: "/dashboard/data" },
   { icon: Brain, label: "Model Registry", href: "/dashboard/models" },
 ]

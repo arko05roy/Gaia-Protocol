@@ -54,7 +54,7 @@ export default function VerificationPage() {
   const { period: verificationPeriod } = useGetVerificationPeriod()
   
   // Transaction hooks
-  const { submitValidatorVote, hash, isPending: isSubmitting, isConfirming, isSuccess: voteSuccess } = useSubmitValidatorVote()
+  const { submitValidatorVote, hash, isPending: isSubmitting, isConfirming, isSuccess: voteSuccess, error: txError, isError: hasTxError } = useSubmitValidatorVote()
   
   const [selectedTask, setSelectedTask] = useState<bigint | null>(null)
   const [expandedTask, setExpandedTask] = useState<bigint | null>(null)
@@ -100,19 +100,41 @@ export default function VerificationPage() {
       return
     }
 
+    // Check if verification has been initiated
+    if (!verificationStatus || verificationStatus.deadline === 0n) {
+      setError("Verification has not been initiated for this task. An admin must initiate verification first.")
+      return
+    }
+
+    // Check if deadline has passed
+    if (BigInt(Math.floor(Date.now() / 1000)) > verificationStatus.deadline) {
+      setError("Verification deadline has passed")
+      return
+    }
+
+    // Check if already finalized
+    if (verificationStatus.isFinalized) {
+      setError("Verification has already been finalized")
+      return
+    }
+
     try {
       setError(null)
       const approved = voteChoice === "approve"
       const confidenceBigInt = BigInt(Math.max(0, Math.min(100, confidence)))
       // Diagnostics to confirm hook invocation
       console.log("Submitting validator vote", {
-        taskId: selectedTask?.toString(),
+        taskId: selectedTask.toString(),
         approved,
+        justification,
         confidence: confidenceBigInt.toString(),
+        verificationManagerAddress: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
       })
       submitValidatorVote(selectedTask, approved, justification, confidenceBigInt)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit vote")
+      const errorMsg = err instanceof Error ? err.message : "Failed to submit vote"
+      console.error("Error in handleSubmit:", errorMsg)
+      setError(errorMsg)
     }
   }
 
@@ -136,6 +158,22 @@ export default function VerificationPage() {
       }, 3000)
     }
   }, [voteSuccess])
+
+  // Handle transaction errors
+  React.useEffect(() => {
+    if (hasTxError && txError) {
+      const errorMsg = txError instanceof Error ? txError.message : String(txError)
+      console.error("Vote submission error:", errorMsg)
+      setError(errorMsg)
+    }
+  }, [hasTxError, txError])
+
+  // Watch for transaction hash
+  React.useEffect(() => {
+    if (hash) {
+      console.log("Vote transaction hash:", hash)
+    }
+  }, [hash])
 
   const currentTask = tasks?.find((t) => t.id === selectedTask)
 

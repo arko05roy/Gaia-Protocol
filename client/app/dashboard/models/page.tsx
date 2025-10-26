@@ -293,21 +293,21 @@ export default function ModelRegistry() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Initial Stake (cUSD)</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Initial Stake (GAIA)</label>
                     <Input 
                       type="number"
-                      placeholder="Minimum 1000 cUSD"
+                      placeholder="Minimum 10 GAIA"
                       value={registerForm.stakeAmount}
                       onChange={(e) => setRegisterForm({...registerForm, stakeAmount: e.target.value})}
-                      min="1000"
+                      min="10"
                       step="0.01"
                     />
-                    {registerForm.stakeAmount && parseFloat(registerForm.stakeAmount) < 1000 && (
+                    {registerForm.stakeAmount && parseFloat(registerForm.stakeAmount) < 10 && (
                       <p className="text-xs text-red-500 mt-1">
-                        ⚠️ Minimum stake is 1000 cUSD
+                        ⚠️ Minimum stake is 10 GAIA
                       </p>
                     )}
-                    {registerForm.stakeAmount && parseFloat(registerForm.stakeAmount) >= 1000 && (
+                    {registerForm.stakeAmount && parseFloat(registerForm.stakeAmount) >= 10 && (
                       <p className="text-xs text-green-500 mt-1">
                         ✓ Valid stake amount
                       </p>
@@ -343,7 +343,7 @@ export default function ModelRegistry() {
                           )
                         } else {
                           // Approval already granted, proceed with registration
-                          if (registerForm.name && registerForm.architecture && registerForm.ipfsHash && stakeAmount >= 1000) {
+                          if (registerForm.name && registerForm.architecture && registerForm.ipfsHash && stakeAmount >= 10) {
                             registerModel(
                               registerForm.name,
                               registerForm.description,
@@ -359,7 +359,7 @@ export default function ModelRegistry() {
                           }
                         }
                       }}
-                      disabled={isRegisterPending || isApprovePending || !registerForm.name || !registerForm.architecture || !registerForm.ipfsHash || parseFloat(registerForm.stakeAmount || "0") < 1000}
+                      disabled={isRegisterPending || isApprovePending || !registerForm.name || !registerForm.architecture || !registerForm.ipfsHash || parseFloat(registerForm.stakeAmount || "0") < 10}
                     >
                       {isApprovePending ? (
                         <>

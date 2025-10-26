@@ -378,6 +378,17 @@ export default function GovernancePage() {
 
       {/* Create Proposal Modal */}
       <AnimatePresence>
+        {showCreateModal && (
+          <CreateProposalModal
+            onClose={() => {
+              setShowCreateModal(false)
+              setApprovalStep("idle")
+              setError(null)
+            }}
+            onSubmit={handleCreateProposal}
+            description={proposalDescription}
+            setDescription={setProposalDescription}
+            targetContract={targetContract}
             setTargetContract={setTargetContract}
             callData={callData}
             setCallData={setCallData}

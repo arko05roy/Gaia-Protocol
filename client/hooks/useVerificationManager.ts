@@ -14,11 +14,54 @@ export interface Vote {
 }
 
 /**
+ * Hook to initiate verification for a task (owner only)
+ * @returns Object with initiateVerification function and transaction state
+ */
+export function useInitiateVerification() {
+  const { writeContract, data: hash, isPending, error, isError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const initiateVerification = (taskId: bigint) => {
+    console.log("initiateVerification called with taskId:", taskId.toString())
+    writeContract({
+      address: VERIFICATION_MANAGER_ADDRESS,
+      abi: VERIFICATION_MANAGER_ABI,
+      functionName: 'initiateVerification',
+      args: [taskId],
+    });
+  };
+
+  return { initiateVerification, hash, isPending, isConfirming, isSuccess, error, isError };
+}
+
+/**
+ * Hook to add a validator (owner only)
+ * @returns Object with addValidator function and transaction state
+ */
+export function useAddValidator() {
+  const { writeContract, data: hash, isPending, error, isError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const addValidator = (validator: `0x${string}`) => {
+    console.log("useAddValidator called with:", validator)
+    console.log("Using VerificationManager address:", VERIFICATION_MANAGER_ADDRESS)
+    writeContract({
+      address: VERIFICATION_MANAGER_ADDRESS,
+      abi: VERIFICATION_MANAGER_ABI,
+      functionName: 'addValidator',
+      args: [validator],
+    });
+  };
+
+  return { addValidator, hash, isPending, isConfirming, isSuccess, error, isError };
+}
+
+/**
  * Hook to submit a validator vote for task verification
  * @returns Object with submitValidatorVote function and transaction state
  */
 export function useSubmitValidatorVote() {
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { writeContract, data: hash, isPending, error, isError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   const submitValidatorVote = (
@@ -27,15 +70,23 @@ export function useSubmitValidatorVote() {
     justification: string,
     confidenceScore: bigint
   ) => {
+    console.log("submitValidatorVote called with:", {
+      taskId: taskId.toString(),
+      approve,
+      confidenceScore: confidenceScore.toString(),
+      justification,
+    })
+    console.log("Calling submitVote on VerificationManager:", VERIFICATION_MANAGER_ADDRESS)
     writeContract({
       address: VERIFICATION_MANAGER_ADDRESS,
       abi: VERIFICATION_MANAGER_ABI,
-      functionName: 'submitValidatorVote',
-      args: [taskId, approve, justification, confidenceScore],
+      functionName: 'submitVote',
+      // Contract signature: submitVote(uint256 taskId, bool approve, uint256 confidenceScore, string justification)
+      args: [taskId, approve, confidenceScore, justification],
     });
   };
 
-  return { submitValidatorVote, hash, isPending, isConfirming, isSuccess };
+  return { submitValidatorVote, hash, isPending, isConfirming, isSuccess, error, isError };
 }
 
 /**
@@ -49,7 +100,10 @@ export function useIsValidator(validator: string | undefined) {
     abi: VERIFICATION_MANAGER_ABI,
     functionName: 'isValidator',
     args: validator ? [validator] : undefined,
-    query: { enabled: !!validator },
+    query: { 
+      enabled: !!validator,
+      refetchInterval: 5000, // Refetch every 5 seconds
+    },
   });
 
   return {
@@ -224,11 +278,32 @@ export function useGetAllValidators() {
   const { data, isLoading, error } = useReadContract({
     address: VERIFICATION_MANAGER_ADDRESS,
     abi: VERIFICATION_MANAGER_ABI,
-    functionName: 'getApprovedValidators',
+    functionName: 'getAllValidators',
+    query: {
+      refetchInterval: 5000, // Refetch every 5 seconds
+    },
   });
 
   return {
     validators: (data as string[] | undefined) || [],
+    isLoading,
+    error,
+  };
+}
+
+/**
+ * Hook to get contract owner
+ * @returns Owner address
+ */
+export function useGetVerificationManagerOwner() {
+  const { data, isLoading, error } = useReadContract({
+    address: VERIFICATION_MANAGER_ADDRESS,
+    abi: VERIFICATION_MANAGER_ABI,
+    functionName: 'owner',
+  });
+
+  return {
+    owner: data as string | undefined,
     isLoading,
     error,
   };

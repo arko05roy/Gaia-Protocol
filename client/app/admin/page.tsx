@@ -17,7 +17,7 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { useGetTotalTasks, useGetTasks, useGetAllValidators, useGetMarketStats, useGetDatasetStats, useGetStatsByProjectType, useCreateProposal, useAuthorizeResearcher, useRevokeResearcher, useGetTasksByStatus, TaskStatus } from "@/hooks"
+import { useGetTotalTasks, useGetTasks, useGetAllValidators, useGetMarketStats, useGetDatasetStats, useGetStatsByProjectType, useCreateProposal, useAddValidator, useGetTasksByStatus, useGetVerificationManagerOwner, useInitiateVerification, TaskStatus } from "@/hooks"
 import { useAccount } from "wagmi"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -35,21 +35,25 @@ export default function AdminPage() {
   const { totalVolume, isLoading: statsLoading } = useGetMarketStats(1n)
   const { totalEntries, totalCO2, totalCost, avgCostPerTon, isLoading: dataStatsLoading } = useGetDatasetStats()
   const { createProposal, isPending: isCreatingProposal, isSuccess: proposalSuccess } = useCreateProposal()
-  const { authorizeResearcher, isPending: isAuthorizing, isSuccess: authorizeSuccess } = useAuthorizeResearcher()
-  const { revokeResearcher, isPending: isRevoking, isSuccess: revokeSuccess } = useRevokeResearcher()
+  const { addValidator, isPending: isAuthorizing, isSuccess: authorizeSuccess, hash: txHash, error: txError, isError: hasTxError } = useAddValidator()
+  const { owner: vmOwner } = useGetVerificationManagerOwner()
   const { taskIds: proposedTasks } = useGetTasksByStatus(TaskStatus.Proposed)
   const { taskIds: fundedTasks } = useGetTasksByStatus(TaskStatus.Funded)
   const { taskIds: inProgressTasks } = useGetTasksByStatus(TaskStatus.InProgress)
   const { taskIds: verifiedTasks } = useGetTasksByStatus(TaskStatus.Verified)
+  const { initiateVerification, isPending: isInitiating, isSuccess: initiateSuccess, hash: initTxHash, error: initTxError, isError: hasInitError } = useInitiateVerification()
 
   const [showProposalModal, setShowProposalModal] = useState(false)
   const [showValidatorModal, setShowValidatorModal] = useState(false)
+  const [showInitiateModal, setShowInitiateModal] = useState(false)
   const [proposalDescription, setProposalDescription] = useState("")
   const [targetContract, setTargetContract] = useState("")
   const [callData, setCallData] = useState("")
   const [validatorAddress, setValidatorAddress] = useState("")
   const [validatorAction, setValidatorAction] = useState<"authorize" | "revoke">("authorize")
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [initiateTaskId, setInitiateTaskId] = useState<string>("")
   const [selectedProjectType, setSelectedProjectType] = useState<string>("Reforestation")
   const { entryCount, totalCO2: typeCO2, avgCO2, isLoading: typeStatsLoading } = useGetStatsByProjectType(selectedProjectType)
 
@@ -107,19 +111,37 @@ export default function AdminPage() {
   }
 
   const handleValidatorAction = () => {
+    if (!address) {
+      setError("Wallet not connected. Please connect your wallet first.")
+      return
+    }
+
     if (!validatorAddress) {
       setError("Validator address is required")
       return
     }
+    
+    // Validate address format
+    if (!validatorAddress.startsWith('0x') || validatorAddress.length !== 42) {
+      setError("Invalid Ethereum address format (must be 0x followed by 40 hex characters)")
+      return
+    }
+
+    // Validate validator address is not same as connected wallet
+    if (validatorAddress.toLowerCase() === address.toLowerCase()) {
+      setError("Cannot add yourself as a validator")
+      return
+    }
+
     try {
       setError(null)
-      if (validatorAction === "authorize") {
-        authorizeResearcher(validatorAddress as `0x${string}`)
-      } else {
-        revokeResearcher(validatorAddress as `0x${string}`)
-      }
+      console.log("Adding validator:", validatorAddress, "from:", address)
+      console.log("VerificationManager address: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707")
+      addValidator(validatorAddress as `0x${string}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to manage validator")
+      const errorMsg = err instanceof Error ? err.message : "Failed to add validator"
+      console.error("Error adding validator:", errorMsg)
+      setError(errorMsg)
     }
   }
 
@@ -133,16 +155,91 @@ export default function AdminPage() {
   }, [proposalSuccess])
 
   React.useEffect(() => {
-    if (authorizeSuccess || revokeSuccess) {
+    if (authorizeSuccess) {
+      setSuccessMessage(`Validator ${validatorAddress} added successfully!`)
       setShowValidatorModal(false)
       setValidatorAddress("")
+      setError(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
     }
-  }, [authorizeSuccess, revokeSuccess])
+  }, [authorizeSuccess, validatorAddress])
+
+  // Watch for transaction hash to show it's being sent
+  React.useEffect(() => {
+    if (txHash) {
+      console.log("Transaction hash:", txHash)
+    }
+  }, [txHash])
+
+  // Watch for transaction errors
+  React.useEffect(() => {
+    if (hasTxError && txError) {
+      const errorMsg = txError instanceof Error ? txError.message : String(txError)
+      console.error("Transaction error:", errorMsg)
+      setError(errorMsg)
+    }
+  }, [hasTxError, txError])
+
+  // Watch for initiate verification tx hash and errors
+  React.useEffect(() => {
+    if (initTxHash) {
+      console.log("Initiate verification tx:", initTxHash)
+    }
+  }, [initTxHash])
+
+  React.useEffect(() => {
+    if (hasInitError && initTxError) {
+      const errorMsg = initTxError instanceof Error ? initTxError.message : String(initTxError)
+      console.error("Initiate verification error:", errorMsg)
+      setError(errorMsg)
+    }
+  }, [hasInitError, initTxError])
+
+  React.useEffect(() => {
+    if (initiateSuccess) {
+      setSuccessMessage(`Verification initiated for Task #${initiateTaskId}`)
+      setShowInitiateModal(false)
+      setInitiateTaskId("")
+      setError(null)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    }
+  }, [initiateSuccess, initiateTaskId])
+
+  const handleInitiate = () => {
+    if (!address) {
+      setError("Wallet not connected. Please connect your wallet first.")
+      return
+    }
+    if (!initiateTaskId) {
+      setError("Task ID is required")
+      return
+    }
+    try {
+      const taskId = BigInt(initiateTaskId)
+      if (taskId <= 0n) {
+        setError("Task ID must be greater than 0")
+        return
+      }
+      setError(null)
+      console.log("Initiating verification for task:", taskId.toString())
+      initiateVerification(taskId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Invalid Task ID")
+    }
+  }
 
   const projectTypes = ["Reforestation", "Mangrove Restoration", "Renewable Energy", "Coral Reef Protection"]
 
   return (
     <div className="min-h-screen bg-background">
+      {successMessage && (
+        <div className="bg-green-50 border-b border-green-200 text-green-700 p-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 flex-shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+        </div>
+      )}
       <div className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <Link href="/dashboard" className="text-primary hover:underline text-sm mb-4 inline-block">
@@ -215,6 +312,13 @@ export default function AdminPage() {
           >
             <UserCheck className="h-4 w-4 mr-2" />
             Manage Validators
+          </Button>
+          <Button
+            onClick={() => setShowInitiateModal(true)}
+            variant="outline"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Initiate Verification
           </Button>
         </div>
 
@@ -595,6 +699,105 @@ export default function AdminPage() {
         )}
       </AnimatePresence>
 
+      {/* Initiate Verification Modal */}
+      <AnimatePresence>
+        {showInitiateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowInitiateModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full p-6 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Initiate Verification</h2>
+                <button
+                  onClick={() => setShowInitiateModal(false)}
+                  className="text-foreground/60 hover:text-foreground transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-700 mb-2">
+                  <strong>Note:</strong> Only the VerificationManager contract owner can initiate verification.
+                </p>
+                <p className="text-xs text-blue-600">
+                  <strong>Contract Owner:</strong> {vmOwner ? `${vmOwner.slice(0, 10)}...${vmOwner.slice(-8)}` : "Loading..."}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  <strong>Your Wallet:</strong> {address ? `${address.slice(0, 10)}...${address.slice(-8)}` : "Not connected"}
+                </p>
+                {address && vmOwner && address.toLowerCase() !== vmOwner.toLowerCase() && (
+                  <p className="text-xs text-red-600 mt-2 font-semibold">⚠️ Your wallet is NOT the owner!</p>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Task ID</label>
+                  <Input
+                    type="number"
+                    value={initiateTaskId}
+                    onChange={(e) => setInitiateTaskId(e.target.value)}
+                    placeholder="e.g., 1"
+                    min={1}
+                    disabled={isInitiating}
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {isInitiating && (
+                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm flex gap-2">
+                    <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
+                    <span>Sending transaction...</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowInitiateModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isInitiating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleInitiate}
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isInitiating}
+                >
+                  {isInitiating ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Initiating...
+                    </>
+                  ) : (
+                    <>Initiate</>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Validator Management Modal */}
       <AnimatePresence>
         {showValidatorModal && (
@@ -622,29 +825,22 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Action</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={validatorAction === "authorize" ? "default" : "outline"}
-                      onClick={() => setValidatorAction("authorize")}
-                      className="flex-1"
-                    >
-                      <UserCheck className="h-4 w-4 mr-2" />
-                      Authorize
-                    </Button>
-                    <Button
-                      variant={validatorAction === "revoke" ? "default" : "outline"}
-                      onClick={() => setValidatorAction("revoke")}
-                      className="flex-1"
-                    >
-                      <UserX className="h-4 w-4 mr-2" />
-                      Revoke
-                    </Button>
-                  </div>
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-700 mb-2">
+                  <strong>Note:</strong> Only the VerificationManager contract owner can add validators.
+                </p>
+                <p className="text-xs text-blue-600">
+                  <strong>Contract Owner:</strong> {vmOwner ? `${vmOwner.slice(0, 10)}...${vmOwner.slice(-8)}` : "Loading..."}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  <strong>Your Wallet:</strong> {address ? `${address.slice(0, 10)}...${address.slice(-8)}` : "Not connected"}
+                </p>
+                {address && vmOwner && address.toLowerCase() !== vmOwner.toLowerCase() && (
+                  <p className="text-xs text-red-600 mt-2 font-semibold">⚠️ Your wallet is NOT the owner!</p>
+                )}
+              </div>
 
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Validator Address</label>
                   <Input
@@ -652,14 +848,22 @@ export default function AdminPage() {
                     value={validatorAddress}
                     onChange={(e) => setValidatorAddress(e.target.value)}
                     placeholder="0x..."
-                    disabled={isAuthorizing || isRevoking}
+                    disabled={isAuthorizing}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">Enter the Ethereum address to add as validator</p>
                 </div>
 
                 {error && (
                   <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
                     <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
+                  </div>
+                )}
+
+                {isAuthorizing && (
+                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm flex gap-2">
+                    <Loader className="h-4 w-4 flex-shrink-0 mt-0.5 animate-spin" />
+                    <span>Sending transaction...</span>
                   </div>
                 )}
               </div>
@@ -669,24 +873,25 @@ export default function AdminPage() {
                   onClick={() => setShowValidatorModal(false)}
                   variant="outline"
                   className="flex-1"
-                  disabled={isAuthorizing || isRevoking}
+                  disabled={isAuthorizing}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleValidatorAction}
                   className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={isAuthorizing || isRevoking}
+                  disabled={isAuthorizing}
                 >
-                  {isAuthorizing || isRevoking ? (
+                  {isAuthorizing ? (
                     <>
                       <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
+                      Adding...
                     </>
-                  ) : validatorAction === "authorize" ? (
-                    "Authorize Validator"
                   ) : (
-                    "Revoke Validator"
+                    <>
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Add Validator
+                    </>
                   )}
                 </Button>
               </div>
