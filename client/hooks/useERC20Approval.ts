@@ -1,10 +1,26 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { OZ_IERC20ABI as OZ_IERC20ABIImport } from '@/lib/abis';
+import { useEffect, useState } from 'react';
 
 const ERC20_ABI = ((OZ_IERC20ABIImport as any)?.default || OZ_IERC20ABIImport || []) as any;
 
-// GaiaL3 cUSD token address
-const CUSD_TOKEN_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const;
+// Default fallback address (will be overridden by deployment config)
+const DEFAULT_CUSD_TOKEN_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const;
+
+// Get cUSD address from deployment config or use fallback
+function getCUSDTokenAddress(): `0x${string}` {
+  if (typeof window !== 'undefined') {
+    try {
+      const deploymentConfig = (window as any).__DEPLOYMENT_CONFIG__;
+      if (deploymentConfig?.cUSD) {
+        return deploymentConfig.cUSD as `0x${string}`;
+      }
+    } catch (e) {
+      // Fallback to default
+    }
+  }
+  return DEFAULT_CUSD_TOKEN_ADDRESS;
+}
 
 /**
  * Hook to check ERC20 token allowance
@@ -62,7 +78,13 @@ export function useApproveToken() {
  * Hook to get cUSD token address for Celo testnet
  */
 export function useCUSDTokenAddress() {
-  return CUSD_TOKEN_ADDRESS;
+  const [address, setAddress] = useState<`0x${string}`>(DEFAULT_CUSD_TOKEN_ADDRESS);
+
+  useEffect(() => {
+    setAddress(getCUSDTokenAddress());
+  }, []);
+
+  return address;
 }
 
 /**
@@ -71,8 +93,10 @@ export function useCUSDTokenAddress() {
  * @returns Token balance
  */
 export function useGetCUSDBalance(account: `0x${string}` | undefined) {
+  const cusdAddress = getCUSDTokenAddress();
+
   const { data, isLoading, error } = useReadContract({
-    address: CUSD_TOKEN_ADDRESS,
+    address: cusdAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: account ? [account] : undefined,

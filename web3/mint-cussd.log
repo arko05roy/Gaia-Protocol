@@ -1,0 +1,5 @@
+[dotenv@17.2.3] injecting env (2) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+Minting cUSD tokens...
+Minting to: 0xABaF59180e0209bdB8b3048bFbe64e855074C0c4
+✓ Minted! Your cUSD balance: 10000.0 cUSD

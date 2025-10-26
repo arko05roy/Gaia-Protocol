@@ -8,6 +8,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 
 import { getConfig } from "./config";
+import { DeploymentConfigInjector } from "@/components/deployment-config-injector";
 
 type Props = {
   children: ReactNode;
@@ -32,6 +33,7 @@ export function Providers({ children, initialState }: Props) {
           })}
           initialChain={11142220}
         >
+          <DeploymentConfigInjector />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
